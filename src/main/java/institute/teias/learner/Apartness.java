@@ -3,6 +3,7 @@ package institute.teias.learner;
 import institute.teias.obsTree.Node;
 import institute.teias.obsTree.ObservationTree;
 import institute.teias.utils.Pair;
+import net.automatalib.automaton.transducer.CompactMealy;
 
 import java.util.*;
 
@@ -45,6 +46,41 @@ public class Apartness {
             }
         }
 
+        return null;
+    }
+
+    public static <I, O> List<I> computeWitnessInTreeAndHypothesis(
+            ObservationTree<I, O> tree,
+            CompactMealy<I, O> hypothesis
+    ) {
+        Node<I, O> treeDestination = showsStatesAreApartInTreeAndHypothesis(tree, hypothesis);
+        if (treeDestination == null) return null;
+        return tree.getAccessSequence(treeDestination);
+    }
+
+    private static <I, O> Node<I, O> showsStatesAreApartInTreeAndHypothesis(
+            ObservationTree<I, O> tree,
+            CompactMealy<I, O> hypothesis
+    ) {
+        Queue<Pair<Node<I, O>, Integer>> pairs = new LinkedList<>();
+        pairs.add(new Pair<>(tree.getRoot(), hypothesis.getInitialState()));
+
+        while (!pairs.isEmpty()) {
+            Pair<Node<I, O>, Integer> topPair = pairs.poll();
+            Node<I, O> treeNode = topPair.first();
+            Integer state = topPair.second();
+
+            for (I input : tree.getAlphabet()) {
+                O treeOutput = treeNode.getOutput(input);
+                O hypothesisOutput = hypothesis.getOutput(state, input);
+                if (treeOutput != null && hypothesisOutput != null) {
+                    if (!treeOutput.equals(hypothesisOutput)) {
+                        return treeNode.getSuccessor(input);
+                    }
+                    pairs.add(new Pair<>(treeNode.getSuccessor(input), hypothesis.getSuccessor(state, input)));
+                }
+            }
+        }
         return null;
     }
 }

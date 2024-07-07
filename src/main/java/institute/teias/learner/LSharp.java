@@ -1,11 +1,14 @@
 package institute.teias.learner;
 
+import com.google.common.collect.HashBiMap;
 import institute.teias.obsTree.Node;
 import institute.teias.obsTree.NormalObservationTree;
 import institute.teias.obsTree.ObservationTree;
 import institute.teias.oracles.OutputOracle;
 import institute.teias.oracles.TestOracle;
 import institute.teias.utils.Pair;
+import net.automatalib.alphabet.Alphabet;
+import net.automatalib.alphabet.Alphabets;
 import net.automatalib.automaton.transducer.CompactMealy;
 
 import java.util.*;
@@ -19,6 +22,7 @@ public class LSharp<I, O> {
     private final HashSet<Node<I, O>> basis = new HashSet<>();
     private final HashMap<Node<I, O>, HashSet<Node<I, O>>> frontierToBasisMap = new HashMap<>();
     private final HashMap<Pair<Node<I, O>, Node<I, O>>, List<I>> witnessCache = new HashMap<>();
+    private final HashBiMap<Node<I, O>, Integer> basisToStateMap = HashBiMap.create();
 
     public LSharp(OutputOracle<I, O> outputOracle, TestOracle<I, O> testOracle, HashSet<I> alphabet) {
         this.outputOracle = outputOracle;
@@ -28,8 +32,143 @@ public class LSharp<I, O> {
         this.basis.add(this.observationTree.getRoot());
     }
 
-    public CompactMealy<I, O> buildHypothesis() {
-        return null;
+    public CompactMealy<I, O> learnMealy() {
+        int round = 1;
+        while (true) {
+            CompactMealy<I, O> hypothesis = this.buildHypothesis();
+            System.out.println("Round : " + round);
+            System.out.println(this.basis.size() + "  " + hypothesis.size());
+//            System.out.println(this);
+            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis);
+            if (ce == null) {
+                System.out.println("finished in " + round + " rounds.");
+                return hypothesis;
+            };
+//            System.out.println("CE = " + ce.first() + " | " + ce.second());
+            this.processCounterExample(hypothesis, ce.first(), ce.second());
+            round += 1;
+        }
+    }
+
+    private CompactMealy<I, O> buildHypothesis() {
+        while (true) {
+            this.makeObservationTreeAdequate();
+            CompactMealy<I, O> hypothesis = this.constructHypothesis();
+            // check consistency
+            List<I> counterExample = Apartness.computeWitnessInTreeAndHypothesis(this.observationTree, hypothesis);
+            // ToDo last ce consistency!
+            if (counterExample == null) {
+                return hypothesis;
+            }
+            List<O> ceOutputs = this.observationTree.getObservation(this.observationTree.getRoot(), counterExample);
+            this.processCounterExample(hypothesis, counterExample, ceOutputs);
+        }
+    }
+
+    private void processCounterExample(CompactMealy<I, O> hypothesis, List<I> ceInputs, List<O> ceOutputs) {
+        // ToDo clear rule caches.
+        this.observationTree.insertObservation(this.observationTree.getRoot(), ceInputs, ceOutputs);
+        List<O> hypothesisOutputs = hypothesis.computeOutput(ceInputs).asList();
+        int prefixIndex = this.getCounterExamplePrefixIndex(ceOutputs, hypothesisOutputs);
+        this.processBinarySearch(hypothesis, ceInputs.subList(0, prefixIndex), ceOutputs.subList(0, prefixIndex));
+        // ToDo cache rules.
+    }
+
+    private int getCounterExamplePrefixIndex(List<O> ceOutputs, List<O> hypothesisOutputs) {
+        Iterator<O> ceIterator = ceOutputs.iterator();
+        Iterator<O> hypothesisIterator = hypothesisOutputs.iterator();
+
+        int index = 0;
+        while (ceIterator.hasNext() && hypothesisIterator.hasNext()) {
+            O ceOutput = ceIterator.next();
+            O hypOutput = hypothesisIterator.next();
+            if (!ceOutput.equals(hypOutput)) return index;
+            index += 1;
+        }
+        throw new RuntimeException("Sul and Hypothesis do not disagree on CE inputs.");
+    }
+
+    private void processBinarySearch(CompactMealy<I, O> hypothesis, List<I> ceInputs, List<O> ceOutputs) {
+        Node<I, O> r = this.observationTree.getSuccessor(this.observationTree.getRoot(), ceInputs);
+        this.updateFrontierAndBasis();
+        if (this.frontierToBasisMap.containsKey(r) || this.basis.contains(r)) {
+            return;
+        }
+        Integer q_state = hypothesis.getSuccessor(hypothesis.getInitialState(), ceInputs);
+        Node<I, O> q = this.basisToStateMap.inverse().get(q_state);
+
+        List<I> prefix = new ArrayList<>();
+        Node<I, O> currentNode = this.observationTree.getRoot();
+        for (I input : ceInputs) {
+            if (this.frontierToBasisMap.containsKey(currentNode)) break;
+            currentNode = currentNode.getSuccessor(input);
+            prefix.add(input);
+        }
+
+        int h = (prefix.size() + ceInputs.size()) / 2;
+        List<I> sigma1 = ceInputs.subList(0, h);
+        List<I> sigma2 = ceInputs.subList(h, ceOutputs.size());
+
+        Integer q_p_state = hypothesis.getSuccessor(hypothesis.getInitialState(), sigma1);
+        Node<I, O> q_p = this.basisToStateMap.inverse().get(q_p_state);
+        List<I> q_p_access = this.observationTree.getAccessSequence(q_p);
+
+        List<I> witness = Apartness.computeWitness(r, q, this.observationTree);
+        if (witness == null) {
+            throw new RuntimeException("Something is wrong.");
+        }
+
+        List<I> queryInputs = new ArrayList<>(q_p_access);
+        queryInputs.addAll(sigma2);
+        queryInputs.addAll(witness);
+        List<O> queryOutputs = this.outputOracle.answerQuery(queryInputs);
+        this.observationTree.insertObservation(this.observationTree.getRoot(), queryInputs, queryOutputs);
+
+        Node<I, O> r_p = this.observationTree.getSuccessor(this.observationTree.getRoot(), sigma1);
+        List<I> witness_p = Apartness.computeWitness(r_p, q_p, this.observationTree);
+        if (witness_p != null) {
+            this.processBinarySearch(hypothesis, sigma1, ceOutputs.subList(0, h));
+        } else {
+            List<I> newInputs = new ArrayList<>(q_p_access);
+            newInputs.addAll(sigma2);
+            this.processBinarySearch(hypothesis, newInputs, queryOutputs.subList(0, newInputs.size()));
+        }
+    }
+
+    private CompactMealy<I, O> constructHypothesis() {
+        Alphabet<I> hypothesisAlphabet = Alphabets.fromCollection(new TreeSet<>(this.alphabet));
+        CompactMealy<I, O> hypothesis = new CompactMealy<>(hypothesisAlphabet);
+
+        Node<I, O> root = this.observationTree.getRoot();
+        this.basisToStateMap.clear();
+        this.basisToStateMap.put(root, hypothesis.addState());
+        hypothesis.setInitialState(this.basisToStateMap.get(root));
+
+        for (Node<I, O> basisState : this.basis) {
+            if (root == basisState) continue;
+            this.basisToStateMap.put(basisState, hypothesis.addState());
+        }
+
+        for (Node<I, O> basisState : this.basis) {
+            for (I input : this.alphabet) {
+                Integer source = this.basisToStateMap.get(basisState);
+                O output = basisState.getOutput(input);
+                Node<I, O> successor = basisState.getSuccessor(input);
+                if (this.frontierToBasisMap.containsKey(successor)) {
+                    HashSet<Node<I, O>> candidates = this.frontierToBasisMap.get(successor);
+                    if (candidates.size() > 1) {
+                        throw new RuntimeException("Multiple basis candidates for a single frontier state.");
+                    }
+                    successor = candidates.iterator().next();
+                }
+                if (!this.basisToStateMap.containsKey(successor)) {
+                    throw new RuntimeException("Something is wrong.");
+                }
+                Integer destination = this.basisToStateMap.get(successor);
+                hypothesis.addTransition(source, input, destination, output);
+            }
+        }
+        return hypothesis;
     }
 
     private void makeObservationTreeAdequate() {
