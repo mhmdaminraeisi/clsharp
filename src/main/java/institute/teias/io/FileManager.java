@@ -1,4 +1,4 @@
-package institute.teias.IO;
+package institute.teias.io;
 
 import net.automatalib.alphabet.Alphabet;
 import net.automatalib.alphabet.Alphabets;
