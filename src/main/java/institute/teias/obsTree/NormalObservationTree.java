@@ -3,16 +3,9 @@ package institute.teias.obsTree;
 import institute.teias.utils.Pair;
 import lombok.NonNull;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
-
-    public NormalObservationTree(HashSet<I> alphabet) {
-        super(alphabet);
-    }
 
     @Override
     public void insertObservation(@NonNull Node<I, O> fromState, List<I> inputs, List<O> outputs) {
@@ -65,5 +58,25 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
             currentNode = currentNode.getSuccessor(input);
         }
         return currentNode;
+    }
+
+    @Override
+    public String toString() {
+        LinkedList<Node<I, O>> queue = new LinkedList<>();
+        queue.add(this.getRoot());
+        StringBuilder result = new StringBuilder();
+        while (!queue.isEmpty()) {
+            Node<I, O> node = queue.poll();
+            List<I> access = this.getAccessSequence(node);
+            for (I input : node.getSuccessors().keySet()) {
+                Node<I, O> successor = node.getSuccessor(input);
+                if (successor != null) queue.add(successor);
+            }
+            if (node.getInputOutput() != null) {
+                result.append(node.getInputOutput().first()).append("|").append(node.getInputOutput().second());
+            }
+            result.append(access).append("  ").append("\n");
+        }
+        return result.toString();
     }
 }

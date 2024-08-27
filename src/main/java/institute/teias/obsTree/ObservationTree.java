@@ -12,7 +12,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public abstract class ObservationTree<I, O> {
     private final Node<I, O> root = new Node<>(null, null);
-    private final HashSet<I> alphabet;
 
     public abstract void insertObservation(Node<I, O> fromState, List<I> inputs, List<O> outputs);
     public void insertOneTransition(Node<I, O> fromState, I input, O output) {

@@ -12,7 +12,7 @@ public class Node<I, O> {
     private final UUID id = UUID.randomUUID();
     @Getter private final Node<I, O> parent;
     @Getter private final Pair<I, O> inputOutput;
-    private final HashMap<I, Pair<O, Node<I, O>>> successors = new HashMap<>();
+    @Getter private final HashMap<I, Pair<O, Node<I, O>>> successors = new HashMap<>();
 
     public Pair<O, Node<I, O>> getOutputSuccessor(I input) {
         return successors.get(input);

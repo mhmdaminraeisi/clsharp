@@ -77,6 +77,7 @@ public class FileManager {
             }
 
             mealy.addTransition(source, input, destination, output);
+            bufferedReader.close();
         }
 
         for (Integer state : mealy.getStates()) {
