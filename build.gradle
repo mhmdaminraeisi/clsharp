@@ -26,6 +26,13 @@ application {
     mainClass = 'institute.teias.Main'
 }
 
+task runBenchmark(type: JavaExec) {
+    group = 'application'
+    description = 'Runs the benchmarks!'
+    mainClass.set('institute.teias.Benchmark') // Replace with your third main class
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 test {
     useJUnitPlatform()
 }

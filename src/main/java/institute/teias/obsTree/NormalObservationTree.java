@@ -7,6 +7,10 @@ import java.util.*;
 
 public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
 
+    public NormalObservationTree(HashSet<I> alphabet) {
+        super(alphabet);
+    }
+
     @Override
     public void insertObservation(@NonNull Node<I, O> fromState, List<I> inputs, List<O> outputs) {
         if (inputs.size() != outputs.size()) {
@@ -68,7 +72,7 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
         while (!queue.isEmpty()) {
             Node<I, O> node = queue.poll();
             List<I> access = this.getAccessSequence(node);
-            for (I input : node.getSuccessors().keySet()) {
+            for (I input : this.getAlphabet()) {
                 Node<I, O> successor = node.getSuccessor(input);
                 if (successor != null) queue.add(successor);
             }

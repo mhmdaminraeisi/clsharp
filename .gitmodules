@@ -1,0 +1,3 @@
+[submodule "hybrid-ads"]
+	path = hybrid-ads
+	url = git@github.com:Jaxan/hybrid-ads.git

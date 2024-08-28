@@ -15,8 +15,10 @@ import de.learnlib.sul.SUL;
 import institute.teias.io.FileManager;
 import institute.teias.learner.*;
 import institute.teias.obsTree.Node;
+import institute.teias.oracles.HybridAdsTestOracle;
 import institute.teias.oracles.OutputOracle;
 import institute.teias.oracles.TestOracle;
+import institute.teias.oracles.perfect.PerfectTestOracle;
 import net.automatalib.automaton.transducer.CompactMealy;
 import net.automatalib.automaton.transducer.MealyMachine;
 import net.automatalib.word.Word;
@@ -72,18 +74,18 @@ public class Main {
             for (int i = 0; i < 1; i++) {
                 System.out.println("\n\n\nFile " + j);
                 CompactMealy<String, String> targetMealy = FileManager.loadMealyFromDotFile(new File(fileName));
-                SUL<String, String> sul2 = new MealySimulatorSUL<>(targetMealy);
-                OutputOracle<String, String> outputOracle2 = new OutputOracle<>(sul2);
-                TestOracle<String, String> testOracle2 = new TestOracle<>(sul2);
-
+                OutputOracle<String, String> outputOracle2 = new OutputOracle<>(targetMealy);
+                TestOracle<String, String> testOracle2 = new PerfectTestOracle<>(targetMealy);
+                TestOracle<String, String> perfectOralce = new PerfectTestOracle<>(targetMealy);
                 HashSet<String> alphabet2 = new HashSet<>(targetMealy.getInputAlphabet());
-                LSharp<String, String> lSharp = new LSharp<>(outputOracle2, testOracle2, alphabet2);
-                CompactMealy<String, String> fsm2 = lSharp.learnMealy();
+                
+                LSharp<String, String> lSharp = new LSharp<>(outputOracle2, testOracle2, perfectOralce, alphabet2, Rule2.Ads, Rule3.Ads);
+                LearnResult lResult = lSharp.learnMealy();
                 System.out.println("\nLSharp");
-                int lshTR = Integer.parseInt(Arrays.stream(testOracle2.getResetsCount().split(" ")).toList().getLast());
-                int lshTS = Integer.parseInt(Arrays.stream(testOracle2.getSymbolsCount().split(" ")).toList().getLast());
-                int lshLR = Integer.parseInt(Arrays.stream(outputOracle2.getResetsCount().split(" ")).toList().getLast());
-                int lshLS = Integer.parseInt(Arrays.stream(outputOracle2.getSymbolsCount().split(" ")).toList().getLast());
+                int lshTR = testOracle2.getResetsCount();
+                int lshTS = testOracle2.getSymbolsCount();
+                int lshLR = outputOracle2.getResetsCount();
+                int lshLS = outputOracle2.getSymbolsCount();
 //                System.out.println("Test " + testOracle2.getResetsCount());
 //                System.out.println("Test " + testOracle2.getSymbolsCount());
 //                System.out.println("Learn " + outputOracle2.getResetsCount());
@@ -91,10 +93,8 @@ public class Main {
 
 
 
-
-                SUL<String, String> sul3 = new MealySimulatorSUL<>(targetMealy);
-                OutputOracle<String, String> outputOracle3 = new OutputOracle<>(sul3);
-                TestOracle<String, String> testOracle3 = new TestOracle<>(sul3);
+                OutputOracle<String, String> outputOracle3 = new OutputOracle<>(targetMealy);
+                TestOracle<String, String> testOracle3 = new PerfectTestOracle<>(targetMealy);
 
                 HashSet<String> alphabet3 = new HashSet<>(targetMealy.getInputAlphabet());
                 CCLSharp<String, String> cclSharp = new CCLSharp<>(outputOracle3, testOracle3, alphabet3);
@@ -103,10 +103,10 @@ public class Main {
                 System.out.println("\nCLSharp");
 
 
-                int clTR = Integer.parseInt(Arrays.stream(testOracle3.getResetsCount().split(" ")).toList().getLast());
-                int clTS = Integer.parseInt(Arrays.stream(testOracle3.getSymbolsCount().split(" ")).toList().getLast());
-                int clLR = Integer.parseInt(Arrays.stream(outputOracle3.getResetsCount().split(" ")).toList().getLast());
-                int clLS = Integer.parseInt(Arrays.stream(outputOracle3.getSymbolsCount().split(" ")).toList().getLast());
+                int clTR = testOracle3.getResetsCount();
+                int clTS = testOracle3.getSymbolsCount();
+                int clLR = outputOracle3.getResetsCount();
+                int clLS = outputOracle3.getSymbolsCount();
                 int clmR = cclSharp.getMinCEResets();
                 int clmS = cclSharp.getMinCESymbols();
                 int clalR = clLR - clmR;
@@ -121,9 +121,8 @@ public class Main {
 
 
 
-                SUL<String, String> sul4 = new MealySimulatorSUL<>(targetMealy);
-                OutputOracle<String, String> outputOracle4 = new OutputOracle<>(sul4);
-                TestOracle<String, String> testOracle4 = new TestOracle<>(sul4);
+                OutputOracle<String, String> outputOracle4 = new OutputOracle<>(targetMealy);
+                TestOracle<String, String> testOracle4 = new PerfectTestOracle<>(targetMealy);
 
                 HashSet<String> alphabet4 = new HashSet<>(targetMealy.getInputAlphabet());
                 NimCLSharp<String, String> nimCLSharp = new NimCLSharp<>(outputOracle4, testOracle4, alphabet4);
@@ -132,10 +131,10 @@ public class Main {
                 System.out.println("\nNimCLSharp");
 
 
-                int nimTR = Integer.parseInt(Arrays.stream(testOracle4.getResetsCount().split(" ")).toList().getLast());
-                int nimTS = Integer.parseInt(Arrays.stream(testOracle4.getSymbolsCount().split(" ")).toList().getLast());
-                int nimLR = Integer.parseInt(Arrays.stream(outputOracle4.getResetsCount().split(" ")).toList().getLast());
-                int nimLS = Integer.parseInt(Arrays.stream(outputOracle4.getSymbolsCount().split(" ")).toList().getLast());
+                int nimTR = testOracle4.getResetsCount();
+                int nimLR = outputOracle4.getResetsCount();
+                int nimTS = testOracle4.getSymbolsCount();
+                int nimLS = outputOracle4.getSymbolsCount();
                 int nimmR = nimCLSharp.getMinCEResets();
                 int nimmS = nimCLSharp.getMinCESymbols();
                 int nimalR = nimLR - nimmR;
@@ -149,9 +148,8 @@ public class Main {
 //                System.out.println("Learn min ce symbols: " + nimCLSharp.getMinCESymbols());
 
 
-                SUL<String, String> sul = new MealySimulatorSUL<>(targetMealy);
-                OutputOracle<String, String> outputOracle = new OutputOracle<>(sul);
-                TestOracle<String, String> testOracle = new TestOracle<>(sul);
+                OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
+                TestOracle<String, String> testOracle = new PerfectTestOracle<>(targetMealy);
 
                 HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
                 CLSharp<String, String> clSharp = new CLSharp<>(outputOracle, testOracle, alphabet);
@@ -159,10 +157,10 @@ public class Main {
                 System.out.println("\nCCLSharp:");
 
 
-                int cclTR = Integer.parseInt(Arrays.stream(testOracle.getResetsCount().split(" ")).toList().getLast());
-                int cclTS = Integer.parseInt(Arrays.stream(testOracle.getSymbolsCount().split(" ")).toList().getLast());
-                int cclLR = Integer.parseInt(Arrays.stream(outputOracle.getResetsCount().split(" ")).toList().getLast());
-                int cclLS = Integer.parseInt(Arrays.stream(outputOracle.getSymbolsCount().split(" ")).toList().getLast());
+                int cclTR = testOracle.getResetsCount();
+                int cclTS = testOracle.getSymbolsCount();
+                int cclLR = outputOracle.getResetsCount();
+                int cclLS = outputOracle.getSymbolsCount();
                 int cclmR = clSharp.getMinCEResets();
                 int cclmS = clSharp.getMinCESymbols();
                 int cclalR = cclLR - cclmR;

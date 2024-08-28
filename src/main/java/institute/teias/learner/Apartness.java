@@ -28,7 +28,10 @@ public class Apartness {
         return firstTree.getTransferSequence(first, firstDestination);
     }
 
-    public static <I, O> boolean statesAreApart(Node<I, O> first, Node<I, O> second) {
+    public static <I, O> boolean statesAreApart(
+            Node<I, O> first, Node<I, O> second,
+            ObservationTree<I, O> firstTree
+    ) {
         return showsStatesAreApart(first, second) != null;
     }
 
