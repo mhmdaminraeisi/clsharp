@@ -3,7 +3,6 @@ package institute.teias.learner;
 import com.google.common.collect.HashBiMap;
 import institute.teias.ads.Ads;
 import institute.teias.obsTree.Node;
-import institute.teias.obsTree.NormalObservationTree;
 import institute.teias.obsTree.ObservationTree;
 import institute.teias.oracles.OutputOracle;
 import institute.teias.oracles.TestOracle;
@@ -43,7 +42,7 @@ public class LSharp<I, O> {
         this.testOracle = testOracle;
         this.perfectOracle = perfectOracle;
         this.alphabet = alphabet;
-        this.observationTree = new NormalObservationTree<>(this.alphabet);
+        this.observationTree = new ObservationTree<>(this.alphabet);
         this.basis.add(this.observationTree.getRoot());
     }
 
@@ -85,14 +84,14 @@ public class LSharp<I, O> {
             if (counterExample == null) {
                 return hypothesis;
             }
-            List<O> ceOutputs = this.observationTree.getObservation(this.observationTree.getRoot(), counterExample);
+            List<O> ceOutputs = this.observationTree.getObservation(counterExample);
             this.processCounterExample(hypothesis, counterExample, ceOutputs);
         }
     }
 
     private void processCounterExample(CompactMealy<I, O> hypothesis, List<I> ceInputs, List<O> ceOutputs) {
         // ToDo clear rule caches.
-        this.observationTree.insertObservation(this.observationTree.getRoot(), ceInputs, ceOutputs);
+        this.observationTree.insertObservation(ceInputs, ceOutputs);
         List<O> hypothesisOutputs = hypothesis.computeOutput(ceInputs).asList();
         int prefixIndex = this.getCounterExamplePrefixIndex(ceOutputs, hypothesisOutputs);
         this.processBinarySearch(hypothesis, ceInputs.subList(0, prefixIndex), ceOutputs.subList(0, prefixIndex));
@@ -108,7 +107,7 @@ public class LSharp<I, O> {
     }
 
     private void processBinarySearch(CompactMealy<I, O> hypothesis, List<I> ceInputs, List<O> ceOutputs) {
-        Node<I, O> r = this.observationTree.getSuccessor(this.observationTree.getRoot(), ceInputs);
+        Node<I, O> r = this.observationTree.getSuccessor(ceInputs);
         this.updateFrontierAndBasis();
         if (this.frontierToBasisMap.containsKey(r) || this.basis.contains(r)) {
             return;
@@ -356,7 +355,7 @@ public class LSharp<I, O> {
                     this.exploreFrontier(basisState, input);
                     Node<I, O> newFrontier = basisState.getSuccessor(input);
                     HashSet<Node<I, O>> basisCandidates = this.basis.stream()
-                            .filter(b -> !Apartness.statesAreApart(newFrontier, b, this.observationTree))
+                            .filter(b -> !Apartness.statesAreApart(newFrontier, b))
                             .collect(Collectors.toCollection(HashSet::new));
                     this.frontierToBasisMap.put(newFrontier, basisCandidates);
                 }
@@ -408,13 +407,13 @@ public class LSharp<I, O> {
 
     private void updateBasisCandidates(Node<I, O> frontierState) {
         this.frontierToBasisMap.replace(frontierState, this.frontierToBasisMap.get(frontierState)
-                .stream().filter(b -> !Apartness.statesAreApart(frontierState, b, this.observationTree))
+                .stream().filter(b -> !Apartness.statesAreApart(frontierState, b))
                 .collect(Collectors.toCollection(HashSet::new)));
     }
 
     private void updateFrontierToBasisMap() {
         this.frontierToBasisMap.replaceAll((f, basisCandidates) -> basisCandidates.stream()
-                .filter(b -> !Apartness.statesAreApart(f, b, this.observationTree))
+                .filter(b -> !Apartness.statesAreApart(f, b))
                 .collect(Collectors.toCollection(HashSet::new)));
     }
 
@@ -431,7 +430,7 @@ public class LSharp<I, O> {
         this.frontierToBasisMap.keySet().remove(newBasis);
 
         this.frontierToBasisMap.replaceAll((f, basisCandidates) -> {
-            if (!Apartness.statesAreApart(f, newBasis, this.observationTree)) {
+            if (!Apartness.statesAreApart(f, newBasis)) {
                 basisCandidates.add(newBasis);
             }
             return basisCandidates;
@@ -447,7 +446,7 @@ public class LSharp<I, O> {
                 }
 
                 HashSet<Node<I, O>> basisCandidates = this.basis.stream()
-                        .filter(b -> !Apartness.statesAreApart(frontierMaybe, b, this.observationTree))
+                        .filter(b -> !Apartness.statesAreApart(frontierMaybe, b))
                         .collect(Collectors.toCollection(HashSet::new));
 
                 frontierToBasisMap.put(frontierMaybe, basisCandidates);
@@ -460,7 +459,7 @@ public class LSharp<I, O> {
         StringBuilder buffer = new StringBuilder();
         buffer.append("##################################################\n");
         buffer.append("observation tree: \n");
-        buffer.append(observationTree.toString());
+        buffer.append(this.observationTree.toString());
         buffer.append("\n");
         buffer.append("basis: \n");
         for (Node<I, O> b : this.basis) {

@@ -32,10 +32,10 @@ public class Component<I, O> {
         this.alphabet = alphabet;
         this.observationForest = new ObservationForest<>(alphabet);
 
-        this.basis.addAll(this.observationForest.getRoots().values());
+        this.basis.addAll(this.observationForest.getRoots());
 
-        for (Node<I, O> root : this.observationForest.getRoots().values()) {
-            HashSet<Node<I, O>> rootEdges = new HashSet<>(this.observationForest.getRoots().values());
+        for (Node<I, O> root : this.observationForest.getRoots()) {
+            HashSet<Node<I, O>> rootEdges = new HashSet<>(this.observationForest.getRoots());
             rootEdges.remove(root);
             this.edges.put(root, rootEdges);
         }
@@ -54,8 +54,8 @@ public class Component<I, O> {
 
             HashSet<Node<I, O>> leftNodes = new HashSet<>(this.edges.keySet());
             HashSet<Node<I, O>> rightNodes = new HashSet<>(component.getEdges().keySet());
-            leftNodes.removeAll(this.observationForest.getRoots().values());
-            rightNodes.removeAll(component.getObservationForest().getRoots().values());
+            this.observationForest.getRoots().forEach(leftNodes::remove);
+            component.getObservationForest().getRoots().forEach(rightNodes::remove);
 
             this.edges.putAll(component.getEdges());
             for (Node<I, O> l : leftNodes) {
@@ -66,8 +66,8 @@ public class Component<I, O> {
             }
         }
 
-        for (Node<I, O> root : this.observationForest.getRoots().values()) {
-            HashSet<Node<I, O>> rootEdges = new HashSet<>(this.observationForest.getRoots().values());
+        for (Node<I, O> root : this.observationForest.getRoots()) {
+            HashSet<Node<I, O>> rootEdges = new HashSet<>(this.observationForest.getRoots());
             rootEdges.remove(root);
             this.edges.get(root).addAll(rootEdges);
         }
@@ -75,13 +75,13 @@ public class Component<I, O> {
         for (Node<I, O> fNode : this.frontiers) {
             boolean isConnectedToAnyRoot = false;
             for (Node<I, O> e : this.edges.get(fNode)) {
-                if (this.observationForest.getRoots().containsValue(e)) {
+                if (this.observationForest.getRoots().contains(e)) {
                     isConnectedToAnyRoot = true;
                     break;
                 }
             }
             if (isConnectedToAnyRoot) {
-                for (Node<I, O> root : this.observationForest.getRoots().values()) {
+                for (Node<I, O> root : this.observationForest.getRoots()) {
                     this.edges.get(root).add(fNode);
                     this.edges.get(fNode).add(root);
                 }
@@ -127,7 +127,7 @@ public class Component<I, O> {
     private void processBinarySearch(CompactMealy<I, O> hypothesis, List<I> ceInputs, List<O> ceOutputs) {
         Node<I, O> r = this.observationForest.getSuccessor(ceInputs);
         this.updateFrontierAndBasis();
-        if (this.frontiers.contains(r) || this.basis.contains(r)) {
+        if (this.frontiers.contains(r) || this.basis.contains(r) || ceInputs.isEmpty()) {
             return;
         }
         Integer q_state = hypothesis.getSuccessor(hypothesis.getInitialState(), ceInputs);
@@ -164,7 +164,7 @@ public class Component<I, O> {
         this.observationForest.insertObservation(queryInputs, queryOutputs);
 
         Node<I, O> r_p = this.observationForest.getSuccessor(sigma1);
-        List<I> witness_p = Apartness.computeWitnessInForest(r_p, q_p, this.observationForest);
+        List<I> witness_p = Apartness.computeWitness(r_p, q_p, this.observationForest);
         if (witness_p != null) {
             this.processBinarySearch(hypothesis, sigma1, ceOutputs.subList(0, h));
         } else {
@@ -187,7 +187,7 @@ public class Component<I, O> {
 
         basisToState.clear();
         stateToBasis.clear();
-        Node<I, O> root = this.observationForest.getRoots().values().iterator().next();
+        Node<I, O> root = this.observationForest.getRoots().iterator().next();
         basisToState.put(root, hypothesis.addState());
         stateToBasis.put(basisToState.get(root), new HashSet<>(List.of(root)));
         for (Node<I, O> e : this.edges.get(root)) {
@@ -294,7 +294,7 @@ public class Component<I, O> {
         List<I> inputs = this.observationForest.getAccessSequence(basisNode);
         inputs.add(input);
         List<O> outputs = this.outputOracle.answerQuery(inputs);
-        this.observationForest.insertOneTransition(basisNode, input, outputs.getLast());
+        this.observationForest.insertObservation(basisNode, input, outputs.getLast());
     }
 
     /** Applying Rule 0: Identify all group candidates. */
@@ -363,7 +363,7 @@ public class Component<I, O> {
         boolean clearRoots = false;
         for (Node<I, O> n : nodeEdges) {
             if (this.getOrComputeWitness(node, n) != null) {
-                if (this.observationForest.getRoots().containsValue(n)) {
+                if (this.observationForest.getRoots().contains(n)) {
                     clearRoots = true;
                 }
                 this.edges.get(node).remove(n);
@@ -371,7 +371,7 @@ public class Component<I, O> {
             }
         }
         if (clearRoots) {
-            for (Node<I, O> root : this.observationForest.getRoots().values()) {
+            for (Node<I, O> root : this.observationForest.getRoots()) {
                 this.edges.get(node).remove(root);
                 this.edges.get(root).remove(node);
             }
@@ -432,7 +432,7 @@ public class Component<I, O> {
         if (this.witnessCache.containsKey(pairTwo)) {
             return this.witnessCache.get(pairTwo);
         }
-        List<I> witness = Apartness.computeWitnessInForest(nodeOne, nodeTwo, this.observationForest);
+        List<I> witness = Apartness.computeWitness(nodeOne, nodeTwo, this.observationForest);
         if (witness != null) {
             this.witnessCache.put(pairOne, witness);
             this.witnessCache.put(pairTwo, witness);

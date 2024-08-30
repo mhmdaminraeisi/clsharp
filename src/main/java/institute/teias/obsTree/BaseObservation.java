@@ -1,18 +1,21 @@
 package institute.teias.obsTree;
 
 import institute.teias.utils.Pair;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 import java.util.*;
 
-public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
-
-    public NormalObservationTree(HashSet<I> alphabet) {
-        super(alphabet);
+@Getter
+@RequiredArgsConstructor
+public abstract class BaseObservation<I, O> {
+    private final HashSet<I> alphabet;
+    public abstract void insertObservation(List<I> inputs, List<O> outputs);
+    public void insertObservation(Node<I, O> fromState, I input, O output) {
+        this.insertObservation(fromState, Collections.singletonList(input), Collections.singletonList(output));
     }
-
-    @Override
-    public void insertObservation(@NonNull Node<I, O> fromState, List<I> inputs, List<O> outputs) {
+    public void insertObservation(Node<I, O> fromState, List<I> inputs, List<O> outputs) {
         if (inputs.size() != outputs.size()) {
             throw new RuntimeException("The size of inputs and outputs are not equal.");
         }
@@ -26,9 +29,7 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
             currentNode = currentNode.extendAndGet(input, output);
         }
     }
-
-    @Override
-    public List<I> getTransferSequence(@NonNull Node<I, O> fromState, @NonNull Node<I, O> toState) {
+    public List<I> getTransferSequence(Node<I, O> fromState, Node<I, O> toState) {
         List<I> transferSequence = new ArrayList<>();
         Node<I, O> currentNode = toState;
         while (currentNode != fromState) {
@@ -38,9 +39,9 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
         }
         return transferSequence.reversed();
     }
-
-    @Override
-    public List<O> getObservation(@NonNull Node<I, O> startState, List<I> inputs) {
+    public abstract List<I> getAccessSequence(@NonNull Node<I, O> state);
+    public abstract List<O> getObservation(List<I> inputs);
+    public List<O> getObservation(Node<I, O> startState, List<I> inputs) {
         List<O> observation = new ArrayList<>();
         Node<I, O> currentNode = startState;
 
@@ -50,11 +51,8 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
             currentNode = outputSuccessor.second();
             observation.add(outputSuccessor.first());
         }
-
         return observation;
     }
-
-    @Override
     public Node<I, O> getSuccessor(Node<I, O> state, List<I> inputs) {
         Node<I, O> currentNode = state;
         for (I input : inputs) {
@@ -63,24 +61,5 @@ public class NormalObservationTree<I, O> extends ObservationTree<I, O> {
         }
         return currentNode;
     }
-
-    @Override
-    public String toString() {
-        LinkedList<Node<I, O>> queue = new LinkedList<>();
-        queue.add(this.getRoot());
-        StringBuilder result = new StringBuilder();
-        while (!queue.isEmpty()) {
-            Node<I, O> node = queue.poll();
-            List<I> access = this.getAccessSequence(node);
-            for (I input : this.getAlphabet()) {
-                Node<I, O> successor = node.getSuccessor(input);
-                if (successor != null) queue.add(successor);
-            }
-            if (node.getInputOutput() != null) {
-                result.append(node.getInputOutput().first()).append("|").append(node.getInputOutput().second());
-            }
-            result.append(access).append("  ").append("\n");
-        }
-        return result.toString();
-    }
+    public abstract Node<I, O> getSuccessor(List<I> inputs);
 }

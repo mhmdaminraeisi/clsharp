@@ -1,35 +1,56 @@
 package institute.teias.obsTree;
 
+import institute.teias.utils.Pair;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 @Getter
-@RequiredArgsConstructor
-public abstract class ObservationTree<I, O> {
-    private final Node<I, O> root = new Node<>(null, null);
-    private final HashSet<I> alphabet;
+public class ObservationTree<I, O> extends BaseObservation<I, O> {
+    private final Node<I, O> root = new Node<>(null, null, this);
+
+    public ObservationTree(HashSet<I> alphabet) {
+        super(alphabet);
+    }
+
+    @Override
     public void insertObservation(List<I> inputs, List<O> outputs) {
         this.insertObservation(this.root, inputs, outputs);
     }
-    public void insertObservation(Node<I, O> fromState, I input, O output) {
-        this.insertObservation(fromState, Collections.singletonList(input), Collections.singletonList(output));
-    }
-    public abstract void insertObservation(Node<I, O> fromState, List<I> inputs, List<O> outputs);
-    public abstract List<I> getTransferSequence(Node<I, O> fromState, Node<I, O> toState);
+
+    @Override
     public List<I> getAccessSequence(@NonNull Node<I, O> state) {
         return this.getTransferSequence(this.root, state);
     }
+
+    @Override
     public List<O> getObservation(List<I> inputs) {
         return this.getObservation(this.root, inputs);
     }
-    public abstract List<O> getObservation(Node<I, O> startState, List<I> inputs);
-    public abstract Node<I, O> getSuccessor(Node<I, O> state, List<I> inputs);
+
+    @Override
     public Node<I, O> getSuccessor(List<I> inputs) {
         return this.getSuccessor(this.root, inputs);
+    }
+
+    @Override
+    public String toString() {
+        LinkedList<Node<I, O>> queue = new LinkedList<>();
+        queue.add(this.root);
+        StringBuilder result = new StringBuilder();
+        while (!queue.isEmpty()) {
+            Node<I, O> node = queue.poll();
+            List<I> access = this.getAccessSequence(node);
+            for (I input : this.getAlphabet()) {
+                Node<I, O> successor = node.getSuccessor(input);
+                if (successor != null) queue.add(successor);
+            }
+            if (node.getInputOutput() != null) {
+                result.append(node.getInputOutput().first()).append("|").append(node.getInputOutput().second());
+            }
+            result.append(access).append("  ").append("\n");
+        }
+        return result.toString();
     }
 }

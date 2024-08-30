@@ -1,7 +1,7 @@
 package institute.teias.ads;
 
 import institute.teias.obsTree.Node;
-import institute.teias.obsTree.ObservationTree;
+import institute.teias.obsTree.BaseObservation;
 import institute.teias.utils.Pair;
 
 import java.util.*;
@@ -12,7 +12,7 @@ public class Ads<I, O> implements IAds<I, O> {
     private AdsNode<I, O> currentNode;
     private final AdsNode<I, O> initialNode;
 
-    public Ads(ObservationTree<I, O> obsTree, HashSet<Node<I, O>> currentBlock){
+    public Ads(BaseObservation<I, O> obsTree, HashSet<Node<I, O>> currentBlock){
         this.initialNode = this.constructAds(obsTree, currentBlock);
         this.currentNode = initialNode;
     }
@@ -21,7 +21,7 @@ public class Ads<I, O> implements IAds<I, O> {
         return this.initialNode.getScore();
     }
     
-    private AdsNode<I, O> constructAds(ObservationTree<I, O> obsTree, HashSet<Node<I, O>> currentBlock) {
+    private AdsNode<I, O> constructAds(BaseObservation<I, O> obsTree, HashSet<Node<I, O>> currentBlock) {
         if (currentBlock.size() == 1) return AdsNode.createLeaf();
         HashMap<I, Pair<Integer, Integer>> splitScore = new HashMap<>();
 
@@ -73,7 +73,7 @@ public class Ads<I, O> implements IAds<I, O> {
         return new AdsNode<>(bestInput, bestChildren, bestScore);
     }
 
-    private int makeSubtree(ObservationTree<I, O> obsTree, int subTrees, O output, HashSet<Node<I, O>> oPartition) {
+    private int makeSubtree(BaseObservation<I, O> obsTree, int subTrees, O output, HashSet<Node<I, O>> oPartition) {
         int partitionSize = oPartition.size();
         int childScore = this.constructAds(obsTree, oPartition).getScore();
 
@@ -81,7 +81,7 @@ public class Ads<I, O> implements IAds<I, O> {
     }
 
     private Pair<Integer, Pair<O, AdsNode<I, O>>> computeOutputSubTree(
-            ObservationTree<I, O> obsTree, O output, HashSet<Node<I, O>> oPartition, int subTrees) {
+            BaseObservation<I, O> obsTree, O output, HashSet<Node<I, O>> oPartition, int subTrees) {
         AdsNode<I, O> outputSubTree = this.constructAds(obsTree, oPartition);
 
         int outputScore = this.computeRegScore(oPartition.size(), subTrees, outputSubTree.getScore());

@@ -2,6 +2,7 @@ package institute.teias.learner;
 
 import institute.teias.obsTree.Node;
 import institute.teias.obsTree.ObservationForest;
+import institute.teias.obsTree.BaseObservation;
 import institute.teias.obsTree.ObservationTree;
 import institute.teias.utils.Pair;
 import net.automatalib.automaton.transducer.CompactMealy;
@@ -9,29 +10,16 @@ import net.automatalib.automaton.transducer.CompactMealy;
 import java.util.*;
 
 public class Apartness {
-
-    public static <I, O> List<I> computeWitnessInForest(
-            Node<I, O> first, Node<I, O> second,
-            ObservationForest<I, O> forest
-    ) {
-        Node<I, O> firstDestination = showsStatesAreApart(first, second);
-        if (firstDestination == null) return null;
-        return forest.getTransferSequence(first, firstDestination);
-    }
-
     public static <I, O> List<I> computeWitness(
             Node<I, O> first, Node<I, O> second,
-            ObservationTree<I, O> firstTree
+            BaseObservation<I, O> firstObservation
     ) {
         Node<I, O> firstDestination = showsStatesAreApart(first, second);
         if (firstDestination == null) return null;
-        return firstTree.getTransferSequence(first, firstDestination);
+        return firstObservation.getTransferSequence(first, firstDestination);
     }
 
-    public static <I, O> boolean statesAreApart(
-            Node<I, O> first, Node<I, O> second,
-            ObservationTree<I, O> firstTree
-    ) {
+    public static <I, O> boolean statesAreApart(Node<I, O> first, Node<I, O> second) {
         return showsStatesAreApart(first, second) != null;
     }
 
@@ -63,7 +51,7 @@ public class Apartness {
             ObservationForest<I, O> forest,
             CompactMealy<I, O> hypothesis
     ) {
-        for (Node<I, O> root : forest.getRoots().values()) {
+        for (Node<I, O> root : forest.getRoots()) {
             Node<I, O> destination = showsStatesAreApartInTreeAndHypothesisWithInitRoot(root, hypothesis);
             if (destination != null) {
                 return forest.getAccessSequence(destination);
