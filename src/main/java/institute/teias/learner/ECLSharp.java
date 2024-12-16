@@ -2,6 +2,7 @@ package institute.teias.learner;
 
 import institute.teias.oracles.OutputOracle;
 import institute.teias.oracles.TestOracle;
+import institute.teias.oracles.perfect.PerfectTestOracle;
 import institute.teias.utils.Pair;
 import lombok.Getter;
 import net.automatalib.alphabet.Alphabet;
@@ -13,28 +14,50 @@ import java.util.*;
 public class ECLSharp<I, O> {
     private final List<Component<I, O>> components = new ArrayList<>();
     private final TestOracle<I, O> testOracle;
+    private final PerfectTestOracle<I, O> perfectOracle;
     private final OutputOracle<I, O> outputOracle;
-    private final HashSet<I> alphabet;
     @Getter private int minCEResets = 0;
     @Getter private int minCESymbols = 0;
 
-    public ECLSharp(OutputOracle<I, O> outputOracle, TestOracle<I, O> testOracle, HashSet<I> alphabet) {
+    public ECLSharp(
+            OutputOracle<I, O> outputOracle,
+            TestOracle<I, O> testOracle,
+            PerfectTestOracle<I, O> perfectOracle,
+            HashSet<I> alphabet,
+            Rule2 rule2,
+            Rule3 rule3,
+            boolean cache
+    ) {
         this.testOracle = testOracle;
+        this.perfectOracle = perfectOracle;
         this.outputOracle = outputOracle;
-        this.alphabet = alphabet;
         for (I input : alphabet) {
-            this.components.add(new Component<>(outputOracle, new HashSet<>(List.of(input))));
+            this.components.add(new Component<>(outputOracle, new HashSet<>(List.of(input)), rule2, rule3, cache));
         }
     }
 
-    public List<CompactMealy<I, O>> learnComponents() {
+    public LearnResult<I, O> learnComponents() {
         int round = 1;
         while (true) {
-            List<CompactMealy<I, O>> hypos = this.components.stream().map(this::learnComponent).toList();
+            List<CompactMealy<I, O>> hypos = new ArrayList<>();
+            for (Component<I, O> component : this.components) {
+                CompactMealy<I, O> hypothesis = this.learnComponent(component);
+                if (hypothesis == null) {
+                    return this.createResult(false, round, this.components.size(), hypos);
+                }
+                hypos.add(hypothesis);
+            }
             CompactMealy<I, O> hypothesis = this.constructProductHypothesis(hypos);
-            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis);
-            if (ce == null) return hypos;
+            Pair<List<I>, List<O>> idealCe = this.perfectOracle.findCounterExample(hypothesis);
+            if (idealCe == null) {
+                return this.createResult(true, round, this.components.size(), hypos);
+            };
 
+            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis);
+            if (ce == null) {
+                System.out.println("No CE found!");
+                return this.createResult(false, round, this.components.size(), hypos);
+            }
             ce = this.cutCounterExample(ce, hypothesis);
             ce = this.minimiseCounterExample(ce, hypothesis);
             List<Component<I, O>> involvedComponents = this.getInvolvedComponents(ce.first());
@@ -43,20 +66,45 @@ public class ECLSharp<I, O> {
             if (o.isEmpty()) {
                 throw new RuntimeException("Something is wrong.");
             }
-
             Component<I, O> baseComponent = o.get();
             baseComponent.getObservationForest().insertObservation(ce.first(), ce.second());
             involvedComponents.remove(baseComponent);
             baseComponent.mergeWithComponents(involvedComponents, ce.first(), ce.second());
             this.components.removeAll(involvedComponents);
+            round ++;
         }
+    }
+
+    private LearnResult<I, O> createResult(boolean isLearned, int rounds, int components, List<CompactMealy<I, O>> hypos) {
+        int maxSize = 0;
+        for (CompactMealy<I, O> entry : hypos) {
+            if (maxSize < entry.size()) maxSize = entry.size();
+        }
+        return new LearnResult<>(
+                outputOracle.getSymbolsCount(),
+                outputOracle.getResetsCount(),
+                testOracle.getSymbolsCount(),
+                testOracle.getResetsCount(),
+                rounds,
+                components,
+                minCESymbols,
+                minCEResets,
+                isLearned,
+                null,
+                maxSize
+        );
     }
 
     private CompactMealy<I, O> learnComponent(Component<I, O> component) {
         while (true) {
             CompactMealy<I, O> hypothesis = component.buildHypothesis();
-            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis);
-            if (ce == null) return hypothesis;
+            Pair<List<I>, List<O>> idealCe = this.perfectOracle.findCounterExample(hypothesis, component.getAlphabet());
+            if (idealCe == null) return hypothesis;
+            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis, component.getAlphabet());
+            if (ce == null) {
+                System.out.println("No CE found for component!");
+                return null;
+            }
             component.processCounterExample(hypothesis, ce.first(), ce.second());
         }
     }

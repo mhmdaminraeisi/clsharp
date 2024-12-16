@@ -13,7 +13,6 @@ public class Node<I, O> {
     @Getter private final Node<I, O> parent;
     @Getter private final Pair<I, O> inputOutput;
     @Getter private final HashMap<I, Pair<O, Node<I, O>>> successors = new HashMap<>();
-    @Getter private final ObservationTree<I, O> obsTree;
 
     public Pair<O, Node<I, O>> getOutputSuccessor(I input) {
         return successors.get(input);
@@ -37,7 +36,7 @@ public class Node<I, O> {
             }
             return this.getSuccessor(input);
         }
-        Node<I, O> successor = new Node<>(this, new Pair<>(input, output), this.obsTree);
+        Node<I, O> successor = new Node<>(this, new Pair<>(input, output));
         this.successors.put(input, new Pair<>(output, successor));
         return successor;
     }

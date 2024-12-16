@@ -19,7 +19,7 @@ public class RandomWalkTestOracle<I, O> extends LearnLibTestOracle<I, O> {
         return new RandomWalkEQOracle<>(
             this.resetCounterSUL,
             0.03,
-            10000,
+            1000,
             true,
             new Random(System.currentTimeMillis())
         );

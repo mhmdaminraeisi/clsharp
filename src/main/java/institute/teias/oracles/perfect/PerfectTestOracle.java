@@ -14,7 +14,7 @@ public class PerfectTestOracle<I, O> extends TestOracle<I, O> {
     }
 
     @Override
-    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis) {
+    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis, HashSet<I> projAlphabet) {
         HashSet<Pair<Integer, Integer>> visitedPairs = new HashSet<>();
         LinkedList<Pair<AccessNode<I>, Pair<Integer, Integer>>> workList = new LinkedList<>();
         AccessTree<I> accessTree = new AccessTree<>();
@@ -27,7 +27,7 @@ public class PerfectTestOracle<I, O> extends TestOracle<I, O> {
             Integer hypState = top.second().second();
             AccessNode<I> accessNode = top.first();
 
-            for (I input : reference.getInputAlphabet()) {
+            for (I input : projAlphabet) {
                 Integer refDest = reference.getSuccessor(refState, input);
                 O refOut = reference.getOutput(refState, input);
                 Integer hypDest = hypothesis.getSuccessor(hypState, input);

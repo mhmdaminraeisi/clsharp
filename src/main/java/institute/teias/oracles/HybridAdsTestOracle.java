@@ -5,10 +5,9 @@ import net.automatalib.automaton.transducer.CompactMealy;
 import net.automatalib.serialization.dot.GraphDOT;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.Scanner;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 
 public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
     private int resets = 0;
@@ -17,7 +16,7 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
     private final ProcessBuilder pb;
 
     // We buffer queries, in order to allow for parallel membership queries.
-    private final int BufferSize = 1000;
+    private final int BufferSize = 5;
     private final List<List<I>> buffer = new ArrayList<>(BufferSize);
 
     private Process process;
@@ -26,7 +25,8 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
 
     public HybridAdsTestOracle(CompactMealy<I, O> reference, int seed) {
         super(reference);
-        pb = new ProcessBuilder("/home/amin/projects/teias/java-lsharp/hybrid-ads/build/main",
+        Path currentPath = Paths.get("").toAbsolutePath();
+        pb = new ProcessBuilder(currentPath + "/hybrid-ads/build/main",
                 "-p", "buggy", "-m", "random", "-k", "10", "-s", "hads", "-r", "10", "-x", String.valueOf(seed));
     }
 
@@ -44,7 +44,7 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
     }
 
     @Override
-    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis) {
+    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis, HashSet<I> projAlphabet) {
         long startTime = System.currentTimeMillis();
 
         try {
@@ -70,7 +70,6 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
                         testSuit.add((I) s.next());
                     }
                     buffer.add(testSuit);
-
                     // If the buffer is filled, we can perform the checks (possibly in parallel)
                     if (buffer.size() >= BufferSize) {
                         Pair<List<I>, List<O>> ce = this.checkAndClearBuffer(hypothesis);
@@ -105,6 +104,7 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
 
     private Pair<List<I>, List<O>> checkHasCE(CompactMealy<I, O> hypothesis) {
         for (List<I> word : buffer) {
+            System.out.println("dali " + word);
             this.resets += 1;
             List<I> ceInputs = new ArrayList<>();
             List<O> ceOutputs = new ArrayList<>();
@@ -126,6 +126,7 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
                 }
 
                 if (!hypOutput.equals(refOutput)) {
+                    System.out.println("khar " + ceInputs);
                     return new Pair<>(ceInputs, ceOutputs);
                 }
             }

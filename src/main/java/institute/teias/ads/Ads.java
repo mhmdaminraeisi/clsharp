@@ -11,9 +11,13 @@ import java.util.stream.Collectors;
 public class Ads<I, O> implements IAds<I, O> {
     private AdsNode<I, O> currentNode;
     private final AdsNode<I, O> initialNode;
+    private final boolean useCache;
 
-    public Ads(BaseObservation<I, O> obsTree, HashSet<Node<I, O>> currentBlock){
-        this.initialNode = this.constructAds(obsTree, currentBlock);
+    private final HashMap<HashSet<Node<I, O>>, AdsNode<I, O>> cache = new HashMap<>();
+
+    public Ads(BaseObservation<I, O> obsTool, HashSet<Node<I, O>> currentBlock, boolean useCache){
+        this.useCache = useCache;
+        this.initialNode = this.constructAds(obsTool, currentBlock);
         this.currentNode = initialNode;
     }
 
@@ -21,16 +25,17 @@ public class Ads<I, O> implements IAds<I, O> {
         return this.initialNode.getScore();
     }
     
-    private AdsNode<I, O> constructAds(BaseObservation<I, O> obsTree, HashSet<Node<I, O>> currentBlock) {
+    private AdsNode<I, O> constructAds(BaseObservation<I, O> obsTool, HashSet<Node<I, O>> currentBlock) {
+        if (this.useCache && this.cache.containsKey(currentBlock)) {
+            return this.cache.get(currentBlock);
+        }
         if (currentBlock.size() == 1) return AdsNode.createLeaf();
         HashMap<I, Pair<Integer, Integer>> splitScore = new HashMap<>();
-
-        Pair<I, Integer> maxInputBase = this.maximalBaseInput(obsTree.getAlphabet(), currentBlock, splitScore);
-
+        Pair<I, Integer> maxInputBase = this.maximalBaseInput(obsTool.getAlphabet(), currentBlock, splitScore);
         HashMap<O, HashSet<Node<I, O>>> oPartitions = this.partitionOnOutput(currentBlock, maxInputBase.first());
         int subTrees = oPartitions.values().stream().map(HashSet::size).reduce(0, Integer::sum);
         int maxInputScore = oPartitions.entrySet().stream()
-                .map(e -> this.makeSubtree(obsTree, subTrees, e.getKey(), e.getValue()))
+                .map(e -> this.makeSubtree(obsTool, subTrees, e.getKey(), e.getValue()))
                 .reduce(0, Integer::sum);
 
         HashSet<I> inputsToKeep = splitScore.entrySet().stream()
@@ -45,7 +50,6 @@ public class Ads<I, O> implements IAds<I, O> {
         I bestInput = null;
         HashMap<O, AdsNode<I, O>> bestChildren = null;
         int bestScore = 0;
-
         for (I input : inputsToKeep) {
             HashMap<O, HashSet<Node<I, O>>> oParts = this.partitionOnOutput(currentBlock, input);
             int sTrees = oParts.values().stream().map(HashSet::size).reduce(0, Integer::sum);
@@ -55,7 +59,7 @@ public class Ads<I, O> implements IAds<I, O> {
 
             for (Map.Entry<O, HashSet<Node<I, O>>> entry : oParts.entrySet()) {
                 Pair<Integer, Pair<O, AdsNode<I, O>>> res
-                        = this.computeOutputSubTree(obsTree, entry.getKey(), entry.getValue(), sTrees);
+                        = this.computeOutputSubTree(obsTool, entry.getKey(), entry.getValue(), sTrees);
                 inputScore += res.first();
                 data.put(res.second().first(), res.second().second());
             }
@@ -70,19 +74,23 @@ public class Ads<I, O> implements IAds<I, O> {
             throw new RuntimeException("Something is wrong.");
         }
 
-        return new AdsNode<>(bestInput, bestChildren, bestScore);
+        AdsNode<I, O> adsNode = new AdsNode<>(bestInput, bestChildren, bestScore);
+        if (this.useCache) {
+            this.cache.put(currentBlock, adsNode);
+        }
+        return adsNode;
     }
 
-    private int makeSubtree(BaseObservation<I, O> obsTree, int subTrees, O output, HashSet<Node<I, O>> oPartition) {
+    private int makeSubtree(BaseObservation<I, O> obsTool, int subTrees, O output, HashSet<Node<I, O>> oPartition) {
         int partitionSize = oPartition.size();
-        int childScore = this.constructAds(obsTree, oPartition).getScore();
+        int childScore = this.constructAds(obsTool, oPartition).getScore();
 
         return computeRegScore(partitionSize, subTrees, childScore);
     }
 
     private Pair<Integer, Pair<O, AdsNode<I, O>>> computeOutputSubTree(
-            BaseObservation<I, O> obsTree, O output, HashSet<Node<I, O>> oPartition, int subTrees) {
-        AdsNode<I, O> outputSubTree = this.constructAds(obsTree, oPartition);
+            BaseObservation<I, O> obsTool, O output, HashSet<Node<I, O>> oPartition, int subTrees) {
+        AdsNode<I, O> outputSubTree = this.constructAds(obsTool, oPartition);
 
         int outputScore = this.computeRegScore(oPartition.size(), subTrees, outputSubTree.getScore());
         return new Pair<>(outputScore, new Pair<>(output, outputSubTree));

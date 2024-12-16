@@ -6,11 +6,13 @@ import de.learnlib.oracle.EquivalenceOracle;
 import de.learnlib.query.DefaultQuery;
 import de.learnlib.statistic.StatisticSUL;
 import institute.teias.utils.Pair;
+import net.automatalib.alphabet.Alphabets;
 import net.automatalib.automaton.transducer.CompactMealy;
 import net.automatalib.automaton.transducer.MealyMachine;
 import net.automatalib.word.Word;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.HashSet;
 import java.util.List;
 
 public abstract class LearnLibTestOracle<I, O> extends TestOracle<I, O> {
@@ -43,8 +45,9 @@ public abstract class LearnLibTestOracle<I, O> extends TestOracle<I, O> {
         return Integer.parseInt(strNumber);
     }
 
-    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis) {
-        @Nullable DefaultQuery<I, Word<O>> ce = this.equivalenceOracle.findCounterExample(hypothesis, hypothesis.getInputAlphabet());
+    @Override
+    public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis, HashSet<I> projAlphabet) {
+        @Nullable DefaultQuery<I, Word<O>> ce = this.equivalenceOracle.findCounterExample(hypothesis, Alphabets.fromCollection(projAlphabet));
         if (ce == null) return null;
         return new Pair<>(ce.getInput().asList(), ce.getOutput().asList());
     }

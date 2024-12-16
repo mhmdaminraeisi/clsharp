@@ -2,6 +2,8 @@ package institute.teias;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.*;
 
 import de.learnlib.driver.simulator.MealySimulatorSUL;
@@ -15,9 +17,7 @@ import de.learnlib.sul.SUL;
 import institute.teias.io.FileManager;
 import institute.teias.learner.*;
 import institute.teias.obsTree.Node;
-import institute.teias.oracles.HybridAdsTestOracle;
-import institute.teias.oracles.OutputOracle;
-import institute.teias.oracles.TestOracle;
+import institute.teias.oracles.*;
 import institute.teias.oracles.perfect.PerfectTestOracle;
 import net.automatalib.automaton.transducer.CompactMealy;
 import net.automatalib.automaton.transducer.MealyMachine;
@@ -26,40 +26,100 @@ import net.automatalib.word.Word;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-//        String fileName = "src/main/resources/all_FSMs/"+args[0]+".dot";
-//        String fileName = "src/main/resources/test_fsms/"+args[0]+".dot";
-//        String fileName = "src/main/resources/test2.dot";
-//
-//
-//        CompactMealy<String, String> targetMealy = FileManager.loadMealyFromDotFile(new File(fileName));
-//
-//        SUL<String, String> sul = new MealySimulatorSUL<>(targetMealy);
-//        OutputOracle<String, String> outputOracle = new OutputOracle<>(sul);
-//        TestOracle<String, String> testOracle = new TestOracle<>(sul);
-//        StatisticSUL<String, String> symbolCounterSUL = new SymbolCounterSUL<>("symbolCounter", sul);
-//        StatisticSUL<String, String> resetCounterSUL = new ResetCounterSUL<>("resetCounter", symbolCounterSUL);
-//
-//
-//        EquivalenceOracle<MealyMachine<?, String, ?, String>, String, Word<String>> equivalenceOracle = new RandomWordsEQOracle<>(
-//                new SULOracle<>(resetCounterSUL),
-//                2,
-//                6,
-//                3000,
-//                new Random(System.currentTimeMillis())
-//        );
-//
-
-//        HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
-//        testOracle.findCounterExample(targetMealy, alphabet);
-////        CLSharp<String, String> clSharp = new CLSharp<>(outputOracle, testOracle, alphabet);
-////        List<CompactMealy<String, String>> fsm = clSharp.learnComponents();
-//
-//        System.out.println("CLSharp:");
-//        System.out.println(testOracle.getResetsCount());
-//        System.out.println(testOracle.getSymbolsCount());
-//        System.out.println(outputOracle.getResetsCount());
-//        System.out.println(outputOracle.getSymbolsCount());
 //        runTests();
+//        String fileName = "src/main/resources/all_FSMs/1.dot";
+////        String fileName = "src/main/resources/all_FSMs/80.dot";
+////        String fileName = "src/main/resources/experimentModels/BitVise.dot";
+//        CompactMealy<String, String> targetMealy = FileManager.loadMealyFromDotFile(new File(fileName));
+////        System.out.println(targetMealy.size());
+////
+
+
+        String dirPath = "src/main/resources";
+        File directory = new File(dirPath);
+        String[] files = directory.list();
+
+
+        String fileName = dirPath + "/all_FSMs/49.dot";
+        CompactMealy<String, String> targetMealy = FileManager.loadMealyFromDotFile(new File(fileName));
+
+        System.out.println("---------------------------------------------");
+        System.out.println("file is " + fileName + "  size = " + targetMealy.size());
+
+        OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
+        PerfectTestOracle<String, String> perfectOracle = new PerfectTestOracle<>(targetMealy);
+        TestOracle<String, String> testOracle = new HybridAdsTestOracle<>(targetMealy, new Random().nextInt());
+        TestOracle<String, String> partialTestOracle = new RandomWordsTestOracle<>(targetMealy);
+        HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
+        CLSharp<String, String> clSharp = new CLSharp<>(outputOracle, testOracle, partialTestOracle, perfectOracle, alphabet, Rule2.Ads, Rule3.Ads, true);
+        LearnResult<String, String> result = clSharp.learnComponents();
+
+        System.out.println("#######################################################");
+        System.out.println("Total Learn Resets: " + result.learnResets());
+        System.out.println("Total Learn Inputs: " + result.learnInputs());
+        System.out.println("Total Test Resets: " + result.testResets());
+        System.out.println("Total Test Inputs: " + result.testInputs());
+        System.out.println("Min Ce Resets: " + result.minCeResets());
+        System.out.println("Min Ce Inputs: " + result.minCeInputs());
+
+
+//        for (int i = 0; i < 1; i++) {
+//            System.out.println("Running repeat " + i);
+//            System.out.println(targetMealy.size());
+//            OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
+//            PerfectTestOracle<String, String> perfectTestOracle = new PerfectTestOracle<>(targetMealy);
+//            TestOracle<String, String> testOracle = new HybridAdsTestOracle<>(targetMealy, new Random().nextInt());
+//            HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
+//            LSharp<String, String> eclSharp = new LSharp<>(outputOracle, testOracle, perfectTestOracle, alphabet, Rule2.Ads, Rule3.Ads, true);
+//            LearnResult<String, String> result = eclSharp.learnMealy();
+//            System.out.println(result.testResets() + "  " + result.testInputs() + "  " + result.learned());
+////            OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
+////            PerfectTestOracle<String, String> perfectTestOracle = new PerfectTestOracle<>(targetMealy);
+////            TestOracle<String, String> testOracle = new RandomWalkTestOracle<>(targetMealy);
+////            HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
+////            ECLSharp<String, String> eclSharp = new ECLSharp<>(outputOracle, testOracle, perfectTestOracle, alphabet, Rule2.Ads, Rule3.Ads, false);
+////            LearnResult<String, String> result = eclSharp.learnComponents();
+////            System.out.println(result.learnInputs() + "  " + result.learnResets());
+//            System.out.println("---------------------------------------");
+//        }
+    }
+
+    public static void runTests() throws Exception {
+        String dirPath = "src/main/resources/all_FSMs";
+        File directory = new File(dirPath);
+        String[] files = directory.list();
+
+        List<String> sortedFiles = Arrays.stream(files).sorted((t1, t2) -> {
+            Integer t1Int = Integer.parseInt(t1.split("\\.")[0]);
+            Integer t2Int = Integer.parseInt(t2.split("\\.")[0]);
+            return t1Int.compareTo(t2Int);
+        }).toList();
+
+
+        try (FileWriter fw = new FileWriter("check.txt", true)) {
+//            int count = 1;
+            for (String file : sortedFiles) {
+//                if (count++ < 22) continue;
+                for (int i = 1; i < 10; i++) {
+                    String fileName = dirPath + "/" + file;
+                    CompactMealy<String, String> targetMealy = FileManager.loadMealyFromDotFile(new File(fileName));
+                    OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
+                    PerfectTestOracle<String, String> perfectOracle = new PerfectTestOracle<>(targetMealy);
+                    TestOracle<String, String> testOracle = new RandomWalkTestOracle<>(targetMealy);
+                    HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
+                    ECLSharp<String, String> eclSharp = new ECLSharp<>(outputOracle, testOracle, perfectOracle, alphabet, Rule2.Ads, Rule3.Ads, true);
+                    long startTime = System.currentTimeMillis();
+                    LearnResult<String, String> result = eclSharp.learnComponents();
+                    long endTime = System.currentTimeMillis();
+                    long time = endTime - startTime;
+                    System.out.println(file + " : " + i + " components: " + result.components() + "  size: " + targetMealy.size() + "  time: " + time);
+                }
+                fw.write("Done file " + file + "\n");
+                fw.flush();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 //    public static void runTests() throws Exception {

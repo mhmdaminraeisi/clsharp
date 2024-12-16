@@ -8,7 +8,7 @@ import java.util.*;
 
 @Getter
 public class ObservationTree<I, O> extends BaseObservation<I, O> {
-    private final Node<I, O> root = new Node<>(null, null, this);
+    private final Node<I, O> root = new Node<>(null, null);
 
     public ObservationTree(HashSet<I> alphabet) {
         super(alphabet);

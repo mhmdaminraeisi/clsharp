@@ -51,7 +51,7 @@ public class Apartness {
             ObservationForest<I, O> forest,
             CompactMealy<I, O> hypothesis
     ) {
-        for (Node<I, O> root : forest.getRoots()) {
+        for (Node<I, O> root : forest.getRootNodes()) {
             Node<I, O> destination = showsStatesAreApartInTreeAndHypothesisWithInitRoot(root, hypothesis);
             if (destination != null) {
                 return forest.getAccessSequence(destination);

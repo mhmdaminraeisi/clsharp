@@ -19,7 +19,7 @@ public class RandomWordsTestOracle<I, O> extends LearnLibTestOracle<I, O> {
     protected EquivalenceOracle<MealyMachine<?, I, ?, O>, I, Word<O>> initializeEquivalenceOracle() {
         return new RandomWordsEQOracle<>(
             new SULOracle<>(this.resetCounterSUL),
-            2,
+            20,
             100,
             30000,
             new Random(System.currentTimeMillis())
