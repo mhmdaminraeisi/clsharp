@@ -34,7 +34,7 @@ public class Benchmark {
         fileWriter.write("file,algorithm,learned,rounds,size,components,learnSymbols,learnResets,TestSymbols,TestResets,minCeSymbols,minCeResets,RunTime,maxCompSize\n");
 
 
-        String[] algs = new String[] {"clsharp", "eclsharp"};
+        String[] algs = new String[] {"nclsharp", "clsharp"};
         int count = 0;
 
         for (String file : sortedFiles) {
@@ -83,18 +83,18 @@ public class Benchmark {
             long time = endTime - startTime;
             return new Results(result.learnInputs(), result.learnResets(), result.testInputs(), result.testResets(), result.rounds(), result.components(), result.minCeInputs(), result.minCeResets(), time, result.learned(), result.maxComponentSize());
         }
-        if (alg.equals("clsharp")) {
-            CLSharp<String, String> clSharp = new CLSharp<>(outputOracle, testOracle, partialTestOracle, perfectTestOracle, alphabet, rule2, rule3, cache);
+        if (alg.equals("nclsharp")) {
+            NCLSharp<String, String> nclSharp = new NCLSharp<>(outputOracle, testOracle, partialTestOracle, perfectTestOracle, alphabet, rule2, rule3, cache);
             long startTime = System.currentTimeMillis();
-            LearnResult<String, String> result = clSharp.learnComponents();
+            LearnResult<String, String> result = nclSharp.learnComponents();
             long endTime = System.currentTimeMillis();
             long time = endTime - startTime;
             return new Results(result.learnInputs(), result.learnResets(), result.testInputs(), result.testResets(), result.rounds(), result.components(), result.minCeInputs(), result.minCeResets(), time, result.learned(), result.maxComponentSize());
         }
-        if (alg.equals("eclsharp")) {
-            ECLSharp<String, String> eclSharp = new ECLSharp<>(outputOracle, testOracle, perfectTestOracle, alphabet, rule2, rule3, cache);
+        if (alg.equals("clsharp")) {
+            CLSharp<String, String> clSharp = new CLSharp<>(outputOracle, testOracle, perfectTestOracle, alphabet, rule2, rule3, cache);
             long startTime = System.currentTimeMillis();
-            LearnResult<String, String> result = eclSharp.learnComponents();
+            LearnResult<String, String> result = clSharp.learnComponents();
             long endTime = System.currentTimeMillis();
             long time = endTime - startTime;
             return new Results(result.learnInputs(), result.learnResets(), result.testInputs(), result.testResets(), result.rounds(), result.components(), result.minCeInputs(), result.minCeResets(), time, result.learned(), result.maxComponentSize());

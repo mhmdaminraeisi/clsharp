@@ -11,80 +11,46 @@ import net.automatalib.automaton.transducer.CompactMealy;
 
 import java.util.*;
 
-public class ECLSharp<I, O> {
-    private final List<Component<I, O>> components = new ArrayList<>();
+public class NCLSharp<I, O> {
+    private final HashMap<HashSet<I>, CompactMealy<I, O>> hypos = new HashMap<>();
     private final TestOracle<I, O> testOracle;
-    private final PerfectTestOracle<I, O> perfectOracle;
+    private final TestOracle<I ,O> partialTestOracle;
     private final OutputOracle<I, O> outputOracle;
+    private final PerfectTestOracle<I, O> perfectTestOracle;
+    private final HashSet<I> alphabet;
+    private final Rule2 rule2;
+    private final Rule3 rule3;
     @Getter private int minCEResets = 0;
     @Getter private int minCESymbols = 0;
+    private final boolean cache;
 
-    public ECLSharp(
-            OutputOracle<I, O> outputOracle,
-            TestOracle<I, O> testOracle,
-            PerfectTestOracle<I, O> perfectOracle,
-            HashSet<I> alphabet,
-            Rule2 rule2,
-            Rule3 rule3,
-            boolean cache
-    ) {
+    public NCLSharp(OutputOracle<I, O> outputOracle, TestOracle<I, O> testOracle, TestOracle<I, O> paratialTestOracle,
+                   PerfectTestOracle<I, O> perfectTestOracle, HashSet<I> alphabet, Rule2 rule2, Rule3 rule3, boolean cache) {
         this.testOracle = testOracle;
-        this.perfectOracle = perfectOracle;
+        this.partialTestOracle = paratialTestOracle;
         this.outputOracle = outputOracle;
+        this.perfectTestOracle = perfectTestOracle;
+        this.alphabet = alphabet;
+        this.rule2 = rule2;
+        this.rule3 = rule3;
+        this.cache = cache;
+
         for (I input : alphabet) {
-            this.components.add(new Component<>(outputOracle, new HashSet<>(List.of(input)), rule2, rule3, cache));
+            HashSet<I> alph = new HashSet<>(List.of(input));
+            this.hypos.put(alph, null);
         }
     }
 
-    public LearnResult<I, O> learnComponents() {
-        int round = 1;
-        while (true) {
-            List<CompactMealy<I, O>> hypos = new ArrayList<>();
-            for (Component<I, O> component : this.components) {
-                CompactMealy<I, O> hypothesis = this.learnComponent(component);
-                if (hypothesis == null) {
-                    return this.createResult(false, round, this.components.size(), hypos);
-                }
-                hypos.add(hypothesis);
-            }
-            CompactMealy<I, O> hypothesis = this.constructProductHypothesis(hypos);
-            Pair<List<I>, List<O>> idealCe = this.perfectOracle.findCounterExample(hypothesis);
-            if (idealCe == null) {
-                return this.createResult(true, round, this.components.size(), hypos);
-            };
-
-            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis);
-            if (ce == null) {
-                System.out.println("No CE found!");
-                return this.createResult(false, round, this.components.size(), hypos);
-            }
-            ce = this.cutCounterExample(ce, hypothesis);
-            ce = this.minimiseCounterExample(ce, hypothesis);
-            List<Component<I, O>> involvedComponents = this.getInvolvedComponents(ce.first());
-            final I firstInput = ce.first().getFirst();
-            Optional<Component<I, O>> o = involvedComponents.stream().filter(c -> c.getAlphabet().contains(firstInput)).findFirst();
-            if (o.isEmpty()) {
-                throw new RuntimeException("Something is wrong.");
-            }
-            Component<I, O> baseComponent = o.get();
-            baseComponent.getObservationForest().insertObservation(ce.first(), ce.second());
-            involvedComponents.remove(baseComponent);
-            baseComponent.mergeWithComponents(involvedComponents, ce.first(), ce.second());
-            this.components.removeAll(involvedComponents);
-            round ++;
-        }
-    }
-
-    private LearnResult<I, O> createResult(boolean isLearned, int rounds, int components, List<CompactMealy<I, O>> hypos) {
+    private LearnResult<I, O> createResult(boolean isLearned, int rounds, int components) {
         int maxSize = 0;
-        for (CompactMealy<I, O> entry : hypos) {
-            if (maxSize < entry.size()) maxSize = entry.size();
+        for (Map.Entry<HashSet<I>, CompactMealy<I, O>> entry : this.hypos.entrySet()) {
+            if (maxSize < entry.getValue().size()) maxSize = entry.getValue().size();
         }
         return new LearnResult<>(
                 outputOracle.getSymbolsCount(),
                 outputOracle.getResetsCount(),
-                testOracle.getSymbolsCount(),
-                testOracle.getResetsCount(),
+                testOracle.getSymbolsCount() + partialTestOracle.getSymbolsCount(),
+                testOracle.getResetsCount() + partialTestOracle.getResetsCount(),
                 rounds,
                 components,
                 minCESymbols,
@@ -95,27 +61,46 @@ public class ECLSharp<I, O> {
         );
     }
 
-    private CompactMealy<I, O> learnComponent(Component<I, O> component) {
+
+    public LearnResult<I, O> learnComponents() {
+        int round = 1;
         while (true) {
-            CompactMealy<I, O> hypothesis = component.buildHypothesis();
-            Pair<List<I>, List<O>> idealCe = this.perfectOracle.findCounterExample(hypothesis, component.getAlphabet());
-            if (idealCe == null) return hypothesis;
-            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis, component.getAlphabet());
-            if (ce == null) {
-                System.out.println("No CE found for component!");
-                return null;
+            for (HashSet<I> alph : this.hypos.keySet()) {
+                if (this.hypos.get(alph) == null) {
+                    LSharp<I, O> lsharp = new LSharp<>(outputOracle, partialTestOracle, this.perfectTestOracle, alph, rule2, rule3, cache);
+                    this.hypos.replace(alph, lsharp.learnMealy().hypothesis());
+                }
             }
-            component.processCounterExample(hypothesis, ce.first(), ce.second());
+            CompactMealy<I, O> hypothesis = this.constructProductHypothesis(hypos.values().stream().toList());
+            Pair<List<I>, List<O>> idealCe = this.perfectTestOracle.findCounterExample(hypothesis, this.alphabet);
+            if (idealCe == null) {
+                return createResult(true, round, this.hypos.size());
+            }
+
+            Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis, this.alphabet);
+
+            if (ce == null) {
+                return createResult(false, round, this.hypos.size());
+            }
+
+            ce = this.cutCounterExample(ce, hypothesis);
+            ce = this.minimiseCounterExample(ce, hypothesis);
+            HashSet<I> newAlphabet = new HashSet<>();
+            for (HashSet<I> alph : this.getInvolvedAlphabets(ce.first())) {
+                this.hypos.remove(alph);
+                newAlphabet.addAll(alph);
+            }
+            this.hypos.put(newAlphabet, null);
+            round ++;
         }
     }
 
     private Pair<List<I>, List<O>> minimiseCounterExample(Pair<List<I>, List<O>> ce, CompactMealy<I, O> hypothesis) {
-        List<Component<I, O>> involvedComponents = getInvolvedComponents(ce.first());
+        List<HashSet<I>> involvedAlphabets = getInvolvedAlphabets(ce.first());
 
-        for (int k = 2; k < involvedComponents.size(); k++) {
-            for (List<Component<I, O>> subset : this.kCombinations(k, 0)) {
+        for (int k = 2; k < involvedAlphabets.size(); k++) {
+            for (List<HashSet<I>> subset : this.kCombinations(k, involvedAlphabets.size() - 1, involvedAlphabets)) {
                 List<I> projectedCe = this.projectCounterExample(ce.first(), subset);
-
                 minCESymbols += projectedCe.size();
                 minCEResets += 1;
                 List<O> outputs = this.outputOracle.answerQuery(projectedCe);
@@ -128,25 +113,24 @@ public class ECLSharp<I, O> {
         return ce;
     }
 
-
-    private List<List<Component<I, O>>> kCombinations(int k, int i) {
+    private List<List<HashSet<I>>> kCombinations(int k, int i, List<HashSet<I>> alphabets) {
         if (k == 0) return List.of(new ArrayList<>());
-        if (this.components.size() - i < k) return new ArrayList<>();
+        if (i + 1 < k) return new ArrayList<>();
 
-        List<List<Component<I, O>>> subList1 = this.kCombinations(k, i+1);
-        List<List<Component<I, O>>> subList2 = this.kCombinations(k-1, i+1);
-        subList2.forEach(l -> l.add(this.components.get(i)));
-        List<List<Component<I, O>>> result = new ArrayList<>();
+        List<List<HashSet<I>>> subList1 = this.kCombinations(k, i-1, alphabets);
+        List<List<HashSet<I>>> subList2 = this.kCombinations(k-1, i-1, alphabets);
+        subList2.forEach(l -> l.add(alphabets.get(i)));
+        List<List<HashSet<I>>> result = new ArrayList<>();
         result.addAll(subList1);
         result.addAll(subList2);
         return result;
     }
 
-    private List<I> projectCounterExample(List<I> ceInputs, List<Component<I, O>> pComponents) {
+    private List<I> projectCounterExample(List<I> ceInputs, List<HashSet<I>> pAlphabets) {
         List<I> projectedCeInputs = new ArrayList<>();
         for (I input : ceInputs) {
-            for (Component<I, O> c : pComponents) {
-                if (c.getAlphabet().contains(input)) {
+            for (HashSet<I> alph : pAlphabets) {
+                if (alph.contains(input)) {
                     projectedCeInputs.add(input);
                     break;
                 }
@@ -165,18 +149,18 @@ public class ECLSharp<I, O> {
         throw new RuntimeException("Counter example outputs is equal to hypothesis outputs.");
     }
 
-    private List<Component<I, O>> getInvolvedComponents(List<I> ceInputs) {
+    private List<HashSet<I>> getInvolvedAlphabets(List<I> ceInputs) {
         HashSet<I> ceAlphabet = new HashSet<>(ceInputs);
-        List<Component<I, O>> involvedComponents = new ArrayList<>();
+        List<HashSet<I>> result = new ArrayList<>();
         int previousSize = ceAlphabet.size();
-        for (Component<I, O> component : this.components) {
-            ceAlphabet.removeAll(component.getAlphabet());
+        for (HashSet<I> alph : this.hypos.keySet()) {
+            ceAlphabet.removeAll(alph);
             if (ceAlphabet.size() < previousSize) {
-                involvedComponents.add(component);
+                result.add(alph);
                 previousSize = ceAlphabet.size();
             }
         }
-        return involvedComponents;
+        return result;
     }
 
     private CompactMealy<I, O> constructProductHypothesis(List<CompactMealy<I, O>> hypos) {
