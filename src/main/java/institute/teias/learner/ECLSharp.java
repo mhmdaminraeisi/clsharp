@@ -110,7 +110,9 @@ public class ECLSharp<I, O> {
     }
 
     private Pair<List<I>, List<O>> minimiseCounterExample(Pair<List<I>, List<O>> ce, CompactMealy<I, O> hypothesis) {
-        for (int k = 2; k <= this.components.size(); k++) {
+        List<Component<I, O>> involvedComponents = getInvolvedComponents(ce.first());
+
+        for (int k = 2; k < involvedComponents.size(); k++) {
             for (List<Component<I, O>> subset : this.kCombinations(k, 0)) {
                 List<I> projectedCe = this.projectCounterExample(ce.first(), subset);
 

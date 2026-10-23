@@ -1,6 +1,5 @@
 package institute.teias.learner;
 
-import institute.teias.obsTree.BaseObservation;
 import institute.teias.obsTree.Node;
 import institute.teias.obsTree.ObservationForest;
 import institute.teias.oracles.OutputOracle;

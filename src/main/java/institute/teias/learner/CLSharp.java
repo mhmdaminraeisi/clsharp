@@ -79,10 +79,6 @@ public class CLSharp<I, O> {
 
             Pair<List<I>, List<O>> ce = this.testOracle.findCounterExample(hypothesis, this.alphabet);
 
-            System.out.println("Test Resets: " + testOracle.getResetsCount());
-            System.out.println("Test Symbols: " + testOracle.getSymbolsCount());
-
-
             if (ce == null) {
                 return createResult(false, round, this.hypos.size());
             }
@@ -101,22 +97,15 @@ public class CLSharp<I, O> {
 
     private Pair<List<I>, List<O>> minimiseCounterExample(Pair<List<I>, List<O>> ce, CompactMealy<I, O> hypothesis) {
         List<HashSet<I>> involvedAlphabets = getInvolvedAlphabets(ce.first());
-        System.out.println("____________________________________________-");
-        System.out.println(hypos.keySet().stream().toList());
-        System.out.println(ce.first());
 
         for (int k = 2; k < involvedAlphabets.size(); k++) {
             for (List<HashSet<I>> subset : this.kCombinations(k, involvedAlphabets.size() - 1, involvedAlphabets)) {
                 List<I> projectedCe = this.projectCounterExample(ce.first(), subset);
                 minCESymbols += projectedCe.size();
                 minCEResets += 1;
-
-                System.out.println("k = " + k + "    " + subset);
-
                 List<O> outputs = this.outputOracle.answerQuery(projectedCe);
                 List<O> hypothesisOutputs = hypothesis.computeStateOutput(hypothesis.getInitialState(), projectedCe).asList();
                 if (!outputs.equals(hypothesisOutputs)) {
-                    System.out.println("done!");
                     return new Pair<>(projectedCe, outputs);
                 }
             }

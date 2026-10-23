@@ -104,7 +104,6 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
 
     private Pair<List<I>, List<O>> checkHasCE(CompactMealy<I, O> hypothesis) {
         for (List<I> word : buffer) {
-            System.out.println("dali " + word);
             this.resets += 1;
             List<I> ceInputs = new ArrayList<>();
             List<O> ceOutputs = new ArrayList<>();
@@ -126,7 +125,6 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
                 }
 
                 if (!hypOutput.equals(refOutput)) {
-                    System.out.println("khar " + ceInputs);
                     return new Pair<>(ceInputs, ceOutputs);
                 }
             }

@@ -34,7 +34,7 @@ public class Benchmark {
         fileWriter.write("file,algorithm,learned,rounds,size,components,learnSymbols,learnResets,TestSymbols,TestResets,minCeSymbols,minCeResets,RunTime,maxCompSize\n");
 
 
-        String[] algs = new String[] {"clsharp"};
+        String[] algs = new String[] {"clsharp", "eclsharp"};
         int count = 0;
 
         for (String file : sortedFiles) {
