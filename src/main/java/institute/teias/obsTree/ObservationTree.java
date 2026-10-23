@@ -1,6 +1,5 @@
 package institute.teias.obsTree;
 
-import institute.teias.utils.Pair;
 import lombok.Getter;
 import lombok.NonNull;
 

@@ -5,7 +5,6 @@ import net.automatalib.automaton.transducer.CompactMealy;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public abstract class TestOracle<I, O> extends Oracle<I, O> {
     public TestOracle(CompactMealy<I, O> reference) {

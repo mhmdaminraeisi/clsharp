@@ -128,7 +128,6 @@ public class CLSharp<I, O> {
         return ce;
     }
 
-
     private List<List<Component<I, O>>> kCombinations(int k, int i) {
         if (k == 0) return List.of(new ArrayList<>());
         if (this.components.size() - i < k) return new ArrayList<>();

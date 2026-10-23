@@ -29,7 +29,7 @@ application {
 task runBenchmark(type: JavaExec) {
     group = 'application'
     description = 'Runs the benchmarks!'
-    mainClass.set('institute.teias.Benchmark') // Replace with your third main class
+    mainClass.set('institute.teias.Benchmark')
     classpath = sourceSets.main.runtimeClasspath
 }
 

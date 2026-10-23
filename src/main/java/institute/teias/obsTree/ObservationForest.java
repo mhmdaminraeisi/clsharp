@@ -65,7 +65,6 @@ public class ObservationForest<I, O> extends BaseObservation<I, O> {
         StringBuilder result = new StringBuilder();
         for (Map.Entry<I, Node<I, O>> root : this.roots.entrySet()) {
             result.append("tree ").append(root.getKey()).append(": \n");
-//            result.append(root.getValue().getObsTree().toString());
             LinkedList<Node<I, O>> queue = new LinkedList<>();
             queue.add(root.getValue());
             while (!queue.isEmpty()) {

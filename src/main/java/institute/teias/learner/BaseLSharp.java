@@ -1,7 +1,6 @@
 package institute.teias.learner;
 
 import institute.teias.ads.Ads;
-import institute.teias.io.FileManager;
 import institute.teias.obsTree.BaseObservation;
 import institute.teias.obsTree.Node;
 import institute.teias.oracles.OutputOracle;
@@ -10,8 +9,6 @@ import lombok.Getter;
 import lombok.Setter;
 import net.automatalib.automaton.transducer.CompactMealy;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 public abstract class BaseLSharp<I, O> {

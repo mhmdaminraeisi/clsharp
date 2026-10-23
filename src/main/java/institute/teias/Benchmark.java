@@ -30,12 +30,9 @@ public class Benchmark {
             return t1Int.compareTo(t2Int);
         }).toList();
 
-
         fileWriter.write("file,algorithm,learned,rounds,size,components,learnSymbols,learnResets,TestSymbols,TestResets,minCeSymbols,minCeResets,RunTime,maxCompSize\n");
 
-
         String[] algs = new String[] {"nclsharp", "clsharp"};
-        int count = 0;
 
         for (String file : sortedFiles) {
             for (String alg : algs) {
@@ -70,8 +67,6 @@ public class Benchmark {
         OutputOracle<String, String> outputOracle = new OutputOracle<>(targetMealy);
         TestOracle<String, String> testOracle = new HybridAdsTestOracle<>(targetMealy, new Random(System.currentTimeMillis()).nextInt());
         TestOracle<String, String> partialTestOracle = new HybridAdsTestOracle<>(targetMealy, new Random(System.currentTimeMillis()).nextInt());
-//        TestOracle<String, String> testOracle = new RandomWalkTestOracle<>(targetMealy);
-//        TestOracle<String, String> testOracle = new RandomWordsTestOracle<>(targetMealy);
         PerfectTestOracle<String, String> perfectTestOracle = new PerfectTestOracle<>(targetMealy);
         HashSet<String> alphabet = new HashSet<>(targetMealy.getInputAlphabet());
 

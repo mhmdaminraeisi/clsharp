@@ -1,7 +1,6 @@
 package institute.teias.learner;
 
 import com.google.common.collect.HashBiMap;
-import institute.teias.obsTree.BaseObservation;
 import institute.teias.obsTree.Node;
 import institute.teias.obsTree.ObservationTree;
 import institute.teias.oracles.OutputOracle;
@@ -99,7 +98,6 @@ public class LSharp<I, O> extends BaseLSharp<I, O> {
         int h = (prefix.size() + ceInputs.size()) / 2;
         List<I> sigma1 = ceInputs.subList(0, h);
         List<I> sigma2 = ceInputs.subList(h, ceOutputs.size());
-
 
         Node<I, O> r_p = this.observationTree.getSuccessor(sigma1);
         Integer q_p_state = hypothesis.getSuccessor(hypothesis.getInitialState(), sigma1);
