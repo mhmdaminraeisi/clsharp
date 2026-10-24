@@ -2,7 +2,36 @@
 This Java project contains an implementation of the L# algorithm.
 The main code for this algorithm can be found in [this](https://gitlab.science.ru.nl/sws/lsharp) GitHub repository, which is written in the Rust programming language.
 
-## Requirements
+## Run with Docker
+
+With Docker running, build and run the project from the repository root:
+
+```bash
+docker build -t nclsharp . && docker run --rm nclsharp
+```
+
+The image builds Java 21 dependencies and the pinned Hybrid-ADS revision automatically.
+You do not need Java, Gradle, CMake, `init.sh`, or an initialized submodule on the host.
+The first build needs internet access to download the build dependencies.
+
+By default, this runs the current `Main` configuration: NCLSharp on
+`src/main/resources/all_FSMs/49.dot`, using Hybrid-ADS for the full hypothesis
+and random words for component testing. Results are printed to the terminal.
+The command-line model and oracle options described below are not currently
+parsed by `Main`.
+
+To run the full benchmark and retrieve its CSV after it finishes:
+
+```bash
+docker run --name nclsharp-benchmark nclsharp institute.teias.Benchmark
+docker cp nclsharp-benchmark:/opt/nclsharp/test_results.csv ./docker_test_results.csv
+docker rm nclsharp-benchmark
+```
+
+The benchmark runs NCLSharp and CLSharp with Hybrid-ADS, targeting three
+successful repetitions of each algorithm per model. It can take a long time.
+
+## Requirements for running without Docker
 Ensure your machine supports Java 21 or higher. You can verify the installation by executing the following command:
 
 ```bash
