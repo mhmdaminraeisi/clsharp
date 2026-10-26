@@ -1,6 +1,8 @@
-# Java-LSharp
-This Java project contains an implementation of the L# algorithm.
-The main code for this algorithm can be found in [this](https://gitlab.science.ru.nl/sws/lsharp) GitHub repository, which is written in the Rust programming language.
+# NCLSharp and CLSharp
+
+Java implementations of NCLSharp and CLSharp, with an optional local L# learner.
+For paper baselines, prefer the original [L# project](https://gitlab.science.ru.nl/sws/lsharp)
+and the [external baseline instructions](benchmarks/BASELINES.md).
 
 ## Run with Docker
 
@@ -23,13 +25,19 @@ parsed by `Main`.
 To run the full benchmark and retrieve its CSV after it finishes:
 
 ```bash
-docker run --name nclsharp-benchmark nclsharp institute.teias.Benchmark
-docker cp nclsharp-benchmark:/opt/nclsharp/test_results.csv ./docker_test_results.csv
+docker run --name nclsharp-benchmark --memory=2g --cpus=2 nclsharp institute.teias.Benchmark benchmarks/models.txt
+docker cp nclsharp-benchmark:/opt/nclsharp/build/benchmark-results/nclsharp_results.csv ./nclsharp_results.csv
+docker cp nclsharp-benchmark:/opt/nclsharp/build/benchmark-results/clsharp_results.csv ./clsharp_results.csv
 docker rm nclsharp-benchmark
 ```
 
-The benchmark runs NCLSharp and CLSharp with Hybrid-ADS, targeting three
-successful repetitions of each algorithm per model. It can take a long time.
+The benchmark defaults to NCLSharp and CLSharp with Hybrid-ADS and ten
+successful repetitions per model. Each algorithm writes a separate six-column CSV:
+`file,size,learnSymbols,learnResets,TestSymbols,TestResets`.
+Learning costs exclude counterexample minimization, exactly once:
+`learnSymbols = raw learnInputs - minCeInputs` and
+`learnResets = raw learnResets - minCeResets`. Testing counters are unchanged.
+The historical `test_results.csv` is never overwritten.
 
 ## Requirements for running without Docker
 Ensure your machine supports Java 21 or higher. You can verify the installation by executing the following command:
@@ -52,35 +60,95 @@ To load it, just run the following command:
 chmod +x ./init.sh && ./init.sh
 ```
 
-## Running Instructions
-The experiment files, which are taken from the Rust project, are located in folder `src/main/resources/experimentModels`.
-If you want to create your own custom file, simply create a file named `custom.dot`
-(replace "custom" with your preferred name) and place it in the above folder.
-Your `custom.dot` file format should be as follows:
+## Single-model example
 
-```dot
-digraph g {
-    s0 -> s1[label="a/0"]
-    s1 -> s2[label="a/1"]
-}
-```
-Ensure that your custom Mealy machine is complete and includes a transition for every input symbol.
-Additionally, the first line of your `custom.dot` file should represent one of the initial state's transition (similar to `s0` in the example above!).
-
-To run the algorithm on your own `custom.dot` file, just run the following command:
-```bash
-./gradlew run --args="-f=custom.dot -eq=hads -r2=ads -r3=ads"
-```
-* Set `-f` value to your experiment model file name.
-* Set `-eq` value to your preferred test oracle type. It must be one of the following values: `hads`(default), `perfect`, `rand_walk`, or `rand_words`.
-* Set `-r2` value to your preferred rule 2 policy. It must be one of the following values: `nothing`, `sep_seq` or `ads`(default).
-* Set `-r3` value to your preferred rule 3 policy. It must be one of the following values: `sep_seq` or `ads`(default).
-* If you want to place your `custom.dot` file in your own folder, just set the `-fo` argument value to your folder path. The default folder path is `src/main/resources/experimentModels`.
+`./gradlew run` runs the hardcoded example in `Main`. It currently does not
+parse command-line options. For configurable experiments, use Benchmark below;
+a one-line model list is sufficient for a single model.
 
 ## Create Benchmarks
-We ran the algorithm on each of our models 100 times and saved the results in the file `results.csv`.
-To recreate the results, execute the following command: (The complete execution of this command may take about two or three hours!)
+
+Pass a model-list path as the first benchmark argument. Each nonempty line contains
+a `.dot` filename from `src/main/resources/all_FSMs`; blank lines and lines starting
+with `#` are ignored. Models run in the listed order. Empty lists, duplicate names,
+and missing models are rejected before output files are opened.
+
+`benchmarks/models.txt` contains the 178 models that have results for both
+algorithms in the historical CSV and still exist in the repository. The five-model
+`benchmarks/smoke.txt` is a quick check using models with fewer than 100 states.
+
+Run the quick check from the repository root (five models, two algorithms,
+three repetitions = 30 successful runs):
 
 ```bash
-./gradlew runBenchmark
+./gradlew runBenchmark --args="benchmarks/smoke.txt --output-dir build/benchmark-smoke --repetitions 3 --seed 2027"
+python3 scripts/check_results.py build/benchmark-smoke --baseline test_results.csv > build/benchmark-smoke/comparison.json
 ```
+
+Run the full shared-model list (178 models, ten repetitions per algorithm):
+
+```bash
+./gradlew runBenchmark --args="benchmarks/models.txt --output-dir build/benchmark-results --repetitions 10 --seed 2027"
+```
+
+Use a fresh output directory for each experiment; previous runs are not overwritten.
+Default output: `build/benchmark-results`. The directory contains:
+
+- `nclsharp_results.csv`, `clsharp_results.csv`: successful runs, six columns each.
+- `attempts.csv`: every attempt, its algorithm, repetition, two seeds, status and elapsed time.
+- `attempts/*.properties`: raw learning/testing/minCe counters, size, rounds and components for completed worker attempts. Timeouts and crashes may have no raw-counter file.
+- `attempts/*.log`: per-attempt stdout/stderr, including stack traces on errors.
+- `run.properties`: configuration, environment, revisions, timestamps and completion flag.
+- `models.txt`: the actual ordered input list used for this run.
+- `inputs.sha256`: hashes of model inputs and available source/build files.
+
+Use `./gradlew runBenchmark --args="--help"` for options. Defaults: ten
+successful repetitions, at most 20 attempts per model/algorithm, 1200 seconds
+per attempt, 1024 MiB Java heap, ADS rules 2/3 and caching enabled.
+Examples: `--algorithms nclsharp,clsharp,lsharp --rule2 SepSeq --rule3 Ads --cache false`.
+The oracle is Hybrid-ADS for full and partial testing. LSharp is optional; prefer
+its [original implementation for paper baselines](benchmarks/BASELINES.md).
+
+Each attempt runs in a separate JVM. Timeouts terminate that worker and its native
+oracle; errors and failed learning attempts are recorded and retried. Any missing
+successful repetitions cause a nonzero final exit status. Failed attempts do not
+appear as successful CSV rows. A parent interruption can leave an unfinished run;
+only `complete=true` in `run.properties` marks a completed experiment.
+
+`--heap-mb` limits the worker Java heap, not native memory. For a total memory/CPU
+limit, use Docker's `--memory` and `--cpus` options as below. The same model and
+attempt receive the same seed pair across algorithms, independently of list order.
+Fixed Hybrid-ADS seeds do not guarantee identical results: the learners still use
+unordered collections. Compare distributions across repeated runs.
+
+To run the quick check in Docker and save all outputs on the host:
+
+```bash
+mkdir -p build/benchmark-smoke-docker
+docker run --rm --memory=2g --cpus=2 -v "$(pwd)/build/benchmark-smoke-docker:/results" nclsharp institute.teias.Benchmark benchmarks/smoke.txt --output-dir /results --repetitions 3 --seed 2027
+```
+
+Rebuild the image after changing code or model lists. The full shared-model list
+includes models below 100 states; it is not a paper-specific selection. Historical
+data are a reference for trends, not exact expected output; original seeds and raw
+paper plotting data are unavailable. `scripts/check_results.py` verifies that CSV
+costs match raw counters and reports per-model mean ratios against historical data.
+The plotting script and final artifact freeze will be added later.
+
+To inspect an ongoing detached full run:
+
+```bash
+docker logs -f nclsharp-full
+```
+
+After it exits, confirm its exit status and validate the saved results:
+
+```bash
+docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' nclsharp-full
+python3 scripts/check_results.py build/benchmark-full --baseline test_results.csv > build/benchmark-full/comparison.json
+```
+
+A successful complete default run has 1780 rows per algorithm (plus CSV headers),
+3560 successful attempts in total, and `complete=true`. Retry attempts can make the
+attempt count larger. Always inspect failures as well as successful-run averages;
+filtering to successful learning runs can affect comparisons.

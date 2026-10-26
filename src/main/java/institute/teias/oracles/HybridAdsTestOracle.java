@@ -19,6 +19,10 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
     private final int BufferSize = 5;
     private final List<List<I>> buffer = new ArrayList<>(BufferSize);
 
+    private static final Set<Process> ACTIVE = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> ACTIVE.forEach(Process::destroyForcibly)));
+    }
     private Process process;
     private Writer processInput;
     private BufferedReader processOutput;
@@ -27,72 +31,55 @@ public class HybridAdsTestOracle<I, O> extends TestOracle<I, O> {
         super(reference);
         Path currentPath = Paths.get("").toAbsolutePath();
         pb = new ProcessBuilder(currentPath + "/hybrid-ads/build/main",
-                "-p", "buggy", "-m", "random", "-k", "10", "-s", "hads", "-r", "10", "-x", String.valueOf(seed));
+                "-p", "buggy", "-m", "random", "-k", "10", "-s", "hads", "-r", "10", "-x", String.valueOf(seed)).redirectError(ProcessBuilder.Redirect.INHERIT);
     }
 
     private void setupProcess() throws IOException {
         process = pb.start();
+        ACTIVE.add(process);
         processInput = new OutputStreamWriter(process.getOutputStream());
         processOutput = new BufferedReader(new InputStreamReader(process.getInputStream()));
     }
 
-    private void closeAll() throws IOException {
-        processInput.close();
-        processOutput.close();
-        process.destroy();
-        process.destroyForcibly();
+    private void closeAll() {
+        if (process != null) {
+            process.destroyForcibly();
+            ACTIVE.remove(process);
+        }
+        try { if (processInput != null) processInput.close(); } catch (IOException ignored) { }
+        try { if (processOutput != null) processOutput.close(); } catch (IOException ignored) { }
+        buffer.clear();
     }
 
     @Override
     public Pair<List<I>, List<O>> findCounterExample(CompactMealy<I, O> hypothesis, HashSet<I> projAlphabet) {
-        long startTime = System.currentTimeMillis();
-
+        buffer.clear();
         try {
-            try {
-                setupProcess();
-            } catch (IOException e) {
-                throw new RuntimeException("Unable to start the external program: " + e);
-            }
-
-            try {
-                // Write the hypothesis to stdin of the external program
-                GraphDOT.write(hypothesis, hypothesis.getInputAlphabet(), processInput);
-                processInput.flush();
-
-                // Read every line outputted on stdout.
-                // We buffer the queries, so that a parallel membership query can be applied
-                String line;
-                while ((line = processOutput.readLine()) != null) {
-                    // Read every string of the line, this will be a symbol of the input sequence.
-                    List<I> testSuit = new ArrayList<>();
-                    Scanner s = new Scanner(line);
-                    while (s.hasNext()) {
-                        testSuit.add((I) s.next());
-                    }
-                    buffer.add(testSuit);
-                    // If the buffer is filled, we can perform the checks (possibly in parallel)
-                    if (buffer.size() >= BufferSize) {
-                        Pair<List<I>, List<O>> ce = this.checkAndClearBuffer(hypothesis);
-                        if (ce != null) {
-                            closeAll();
-                            s.close();
-                            return ce;
-                        }
-                    }
-
-                    long endTime = System.currentTimeMillis();
-                    if (endTime - startTime >= 20 * 60 * 1000){ // 20 minutes
-                        break;
-                    }
+            setupProcess();
+            GraphDOT.write(hypothesis, hypothesis.getInputAlphabet(), processInput);
+            processInput.flush();
+            String line;
+            while ((line = processOutput.readLine()) != null) {
+                List<I> testSuite = new ArrayList<>();
+                try (Scanner scanner = new Scanner(line)) {
+                    while (scanner.hasNext()) testSuite.add((I) scanner.next());
                 }
-            } catch (IOException e) {
-                throw new RuntimeException("Unable to communicate with the external program: " + e);
+                buffer.add(testSuite);
+                if (buffer.size() >= BufferSize) {
+                    Pair<List<I>, List<O>> ce = checkAndClearBuffer(hypothesis);
+                    if (ce != null) return ce;
+                }
             }
+            if (process.waitFor() != 0) throw new IllegalStateException("Hybrid-ADS exited with code " + process.exitValue());
+            // A finite test stream can end before the buffer reaches five queries.
+            return checkAndClearBuffer(hypothesis);
+        } catch (IOException e) {
+            throw new IllegalStateException("Hybrid-ADS failed; check executable and attempt log", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Hybrid-ADS interrupted", e);
+        } finally {
             closeAll();
-
-            return null;
-        } catch (Exception e) {
-            return null;
         }
     }
 

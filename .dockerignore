@@ -6,3 +6,5 @@
 !LICENSE
 !src/
 !src/**
+!benchmarks/
+!benchmarks/**

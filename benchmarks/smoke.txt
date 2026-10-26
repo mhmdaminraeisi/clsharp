@@ -1,0 +1,6 @@
+# Small test models: 4, 12, 32, 36, and 64 states.
+1.dot
+19.dot
+37.dot
+41.dot
+54.dot
