@@ -8,3 +8,7 @@
 !src/**
 !benchmarks/
 !benchmarks/**
+!baseline/
+!baseline/clstar/
+!baseline/clstar/**
+**/.DS_Store

@@ -106,6 +106,8 @@ Use `./gradlew runBenchmark --args="--help"` for options. Defaults: ten
 successful repetitions, at most 20 attempts per model/algorithm, 1200 seconds
 per attempt, 1024 MiB Java heap, ADS rules 2/3 and caching enabled.
 Examples: `--algorithms nclsharp,clsharp,lsharp --rule2 SepSeq --rule3 Ads --cache false`.
+CL* uses isolated LearnLib 0.16 workers: select `--algorithms clstar-cached,clstar-no-cache`.
+See [CL* build and accounting instructions](baseline/clstar/README.md).
 The oracle is Hybrid-ADS for full and partial testing. LSharp is optional; prefer
 its [original implementation for paper baselines](benchmarks/BASELINES.md).
 
@@ -152,3 +154,33 @@ A successful complete default run has 1780 rows per algorithm (plus CSV headers)
 3560 successful attempts in total, and `complete=true`. Retry attempts can make the
 attempt count larger. Always inspect failures as well as successful-run averages;
 filtering to successful learning runs can affect comparisons.
+
+## Resume with fewer repetitions
+
+`--repetitions` is configurable; its default remains 10. Stop the previous run
+before importing it. Resume always writes a **new** directory and leaves the old
+one unchanged. Keep the same model list, algorithms, seed, cache and rule settings.
+
+```bash
+./gradlew runBenchmark --args="benchmarks/models.txt --repetitions 3 --seed 2027 --resume-from build/benchmark-full --output-dir build/benchmark-full-3"
+```
+
+Existing successful trials are reused in recorded order. Only the first three per
+model/algorithm contribute to the new CSVs. Additional successes remain in the
+attempt log as `surplus_success`, with their raw counters and logs preserved.
+Incomplete groups continue with the next attempt number and corresponding seeds;
+the total attempt cap still applies. Model hashes and configuration are checked
+before importing. `imported-run.properties` and `imported-inputs.sha256` retain the
+old provenance, while the new metadata records the current executable/source hashes.
+An interrupted attempt with no ledger entry is not considered a completed trial.
+
+In Docker, mount the old run read-only at `/previous` and the fresh output at `/results`:
+
+```bash
+mkdir -p build/benchmark-full-3
+docker run --name nclsharp-full-3 --memory=2g --cpus=2 -v "$(pwd)/build/benchmark-full:/previous:ro" -v "$(pwd)/build/benchmark-full-3:/results" nclsharp institute.teias.Benchmark benchmarks/models.txt --repetitions 3 --seed 2027 --resume-from /previous --output-dir /results
+```
+
+For a three-repeat default run, the target is **534 successful CSV rows per
+algorithm / 1068 total**. Imported surplus successes are not counted toward that
+target. Use fresh output/container names when re-running these examples.

@@ -44,3 +44,47 @@ run {
         systemProperty 'LOG_LEVEL', 'WARN'
     }
 }
+
+// CL* uses LearnLib 0.16; keep it isolated from the main learner's 0.17 APIs.
+sourceSets {
+    clstar {
+        java.srcDirs = ['baseline/clstar/src']
+        resources.srcDirs = []
+    }
+    clstarTest {
+        java.srcDirs = ['baseline/clstar/test']
+        resources.srcDirs = []
+        compileClasspath = sourceSets.clstar.output + configurations.clstarRuntimeClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+dependencies {
+    def offlineBundle = providers.gradleProperty('clstarDependencyJar').orNull
+    if (offlineBundle != null) {
+        def bundle = file(offlineBundle)
+        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(bundle.bytes).encodeHex().toString()
+        if (actual != 'a60d4a7ca277cb0e5e11745ab584041d10825b841e82535d9f4597b46a705a6f') throw new GradleException('Unexpected CL* LearnLib dependency checksum')
+        clstarImplementation files(bundle)
+    } else {
+        clstarImplementation('de.learnlib.distribution:learnlib-distribution:0.16.0:dependencies-bundle@jar') {
+            transitive = false
+        }
+    }
+}
+tasks.register('clstarJar', Jar) {
+    archiveBaseName = 'clstar'
+    from sourceSets.clstar.output
+}
+tasks.register('installClstar', Copy) {
+    dependsOn tasks.named('clstarJar')
+    from configurations.clstarRuntimeClasspath
+    from tasks.named('clstarJar')
+    into layout.buildDirectory.dir('clstar/lib')
+}
+tasks.named('runBenchmark') { dependsOn tasks.named('installClstar') }
+tasks.register('checkClstar', JavaExec) {
+    dependsOn tasks.named('clstarTestClasses')
+    classpath = sourceSets.clstarTest.runtimeClasspath
+    mainClass = 'ClStarChecks'
+    args rootDir.absolutePath
+}

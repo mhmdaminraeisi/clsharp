@@ -1,15 +1,11 @@
 # External baselines
 
-The paper's L# baseline was run using its original project. The CL* baseline
-used a modified external implementation connected to Hybrid-ADS. That adapter
-and its build/run integration are not included yet and are deferred to the final
-artifact preparation. The upstream CL* command below is a reference, not a
-reproduction of that modified baseline.
-
-This repository's optional `--algorithms lsharp` runs the local Java implementation;
-it does not reproduce those original baseline executions. The exact historical
-baseline revision, configuration and raw paper data are unavailable here. The
-versions below are reproducible reference versions, not claimed historical ones.
+The L# baseline uses its original project. The supplied modified CL* implementation
+is now integrated under [`baseline/clstar`](../baseline/clstar/README.md), with
+cached and no-cache modes and the root Hybrid-ADS executable. Historical raw paper
+data are unavailable; these instructions define new reproducible executions.
+The local optional `--algorithms lsharp` is a Java implementation and does not
+substitute for the original Rust baseline.
 
 ## L#
 
@@ -32,25 +28,27 @@ and outputs separately. The archive predates this project's renamed learners.
 
 ## CL*
 
-Source and instructions: <https://github.com/faezeh-lbf/CL-Star>.
-Reference revision checked on 2026-10-24:
-`ae09edf9d2f4d29df45cd3d541c83dce2b68816b`.
+Original project: <https://github.com/faezeh-lbf/CL-Star>.
+The imported checkout was at `899d16834f4bc96fc997d3873aecbab22577a020` with local
+modifications; [NOTICE.md](../baseline/clstar/NOTICE.md) records provenance and
+source hashes. The original random-words command is not the modified HADS baseline.
+
+Run both variants through the common benchmark interface:
 
 ```bash
-git clone https://github.com/faezeh-lbf/CL-Star.git
-cd CL-Star
-git checkout --detach ae09edf9d2f4d29df45cd3d541c83dce2b68816b
-java -cp 'libs/*:cl-star.jar' Run_experiment -src_dir data/experiment_benchmarks.txt -repeat 10 -eq rndWords
+./gradlew runBenchmark --args="benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir build/clstar-smoke"
 ```
 
-Supply the intended models through the upstream list format and configure
-`benchmarks_base_dir` and `result_path` in its `.experimentProps`.
-The upstream default oracle is random words; this command does not assert oracle
-parity with this repository's Hybrid-ADS. Upstream output is `data/Results.csv`
-unless configured otherwise. See its README and `documentation.txt` for Docker
-setup and available equivalence oracles.
+For the full list, replace `benchmarks/smoke.txt` with `benchmarks/models.txt` and
+choose a fresh output directory. The paper describes ten repetitions; use
+`--repetitions 10` for that protocol. The three-repeat run is a shorter validation.
 
-For any new cross-project comparison, record versions, model hashes, repetitions,
-seeds (where supported), oracle budgets, caching and counter definitions. Confirm
-counterexample-minimization accounting before combining outputs; do not subtract
-this project's minCe from unrelated baseline counters automatically.
+See the [CL* guide](../baseline/clstar/README.md) for building, Docker, cache
+placement, per-EQ budgets, cost accounting, independent validation and tests.
+Only learning costs are compared for CL* in the paper; CL* testing columns are
+exported for diagnostics and are excluded from the Figure 6 comparison.
+
+For new cross-project comparisons, preserve versions, model hashes, seeds, budgets,
+cache configuration and raw counters. The main learners and this supplied CL*
+protocol differ in their reference guards/termination policy. Shared Hybrid-ADS
+code does not imply identical test budgets. Plotting integration remains separate.

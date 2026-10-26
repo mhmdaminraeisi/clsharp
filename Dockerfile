@@ -21,8 +21,9 @@ RUN git init hybrid-ads \
 COPY --from=gradle /opt/gradle/ /opt/gradle/
 COPY build.gradle settings.gradle ./
 COPY src/ src/
-RUN find src/main/java -type f -exec sha256sum {} \; > build-source.sha256 \
-    && /opt/gradle/bin/gradle --no-daemon --max-workers=2 --console=plain installDist
+COPY baseline/clstar/ baseline/clstar/
+RUN find src/main/java baseline/clstar/src -type f -exec sha256sum {} \; > build-source.sha256 \
+    && /opt/gradle/bin/gradle --no-daemon --max-workers=2 --console=plain installDist installClstar
 
 FROM eclipse-temurin:21-jre-jammy AS runtime
 
@@ -32,6 +33,8 @@ RUN apt-get update \
 
 WORKDIR /opt/nclsharp
 COPY --from=builder /opt/nclsharp/build/install/nclsharp/lib/ ./lib/
+COPY --from=builder /opt/nclsharp/build/clstar/lib/ ./clstar/lib/
+COPY baseline/clstar/README.md baseline/clstar/NOTICE.md baseline/clstar/imported-sources.sha256 ./baseline/clstar/
 COPY LICENSE ./LICENSE
 COPY --from=builder /opt/nclsharp/build-source.sha256 ./build-source.sha256
 ENV HYBRID_ADS_REVISION=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
@@ -40,5 +43,5 @@ COPY --from=builder /opt/nclsharp/hybrid-ads/LICENSE ./hybrid-ads/LICENSE
 COPY src/main/resources/ ./src/main/resources/
 COPY benchmarks/ ./benchmarks/
 
-ENTRYPOINT ["java", "-DLOG_LEVEL=WARN", "-cp", "/opt/nclsharp/lib/*"]
+ENTRYPOINT ["java", "-DLOG_LEVEL=WARN", "-Dclstar.classpath=/opt/nclsharp/clstar/lib/*", "-cp", "/opt/nclsharp/lib/*"]
 CMD ["institute.teias.Main"]

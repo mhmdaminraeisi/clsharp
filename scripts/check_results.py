@@ -55,6 +55,13 @@ def check(output, baseline):
             assert raw['learned'] == 'true' and int(row['size']) == int(raw['size'])
             assert [int(row[k]) for k in metrics] == expected
             assert all(v >= 0 for v in expected)
+            if alg.startswith('clstar-'):
+                assert raw['cache'] == str(alg == 'clstar-cached').lower()
+                assert raw['referencePrecheck'] == 'false'
+                assert int(raw['testInputsIncludingFinalEq']) == int(raw['testInputs']) + int(raw['excludedFinalEqInputs'])
+                assert int(raw['testResetsIncludingFinalEq']) == int(raw['testResets']) + int(raw['excludedFinalEqResets'])
+                assert int(raw['minCeInputs']) <= int(raw['learnInputs'])
+                assert int(raw['minCeResets']) <= int(raw['learnResets'])
             grouped[row['file']].append(row)
         if report['complete']:
             assert set(grouped) == set(models)

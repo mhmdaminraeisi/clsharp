@@ -28,8 +28,9 @@ public class Benchmark {
     private static final String HEADER = "file,size,learnSymbols,learnResets,TestSymbols,TestResets";
     private static final String USAGE = """
             Usage: Benchmark <model-list> [options]
+              --resume-from DIR      import prior attempts into a fresh output directory
               --output-dir DIR       default: build/benchmark-results (fresh directory)
-              --algorithms LIST      comma-separated nclsharp,clsharp,lsharp; default nclsharp,clsharp
+              --algorithms LIST      comma-separated nclsharp,clsharp,lsharp,clstar-cached,clstar-no-cache; default nclsharp,clsharp
               --repetitions N         successful runs per model/algorithm; default 10
               --max-attempts N        total attempts per model/algorithm; default 20
               --seed N                master seed; default 2027
@@ -37,7 +38,10 @@ public class Benchmark {
               --heap-mb N             Java heap per attempt; default 1024
               --rule2 Nothing|SepSeq|Ads   default Ads
               --rule3 SepSeq|Ads           default Ads
-              --cache true|false      default true
+              --cache true|false      default true (main Java learners only)
+              --clstar-classpath CP    default build/clstar/lib/* (isolated LearnLib 0.16)
+              --hads-max-tests N       CL* tests per EQ call; default 10000
+              --hads-timeout-seconds N CL* timeout per EQ call; default 1200
             Oracle: Hybrid-ADS. Run from the repository root.
             """;
 
@@ -50,7 +54,9 @@ public class Benchmark {
                 Map.entry("output-dir", "build/benchmark-results"), Map.entry("algorithms", "nclsharp,clsharp"),
                 Map.entry("repetitions", "10"), Map.entry("max-attempts", "20"), Map.entry("seed", "2027"),
                 Map.entry("timeout-seconds", "1200"), Map.entry("heap-mb", "1024"),
-                Map.entry("rule2", "Ads"), Map.entry("rule3", "Ads"), Map.entry("cache", "true"));
+                Map.entry("rule2", "Ads"), Map.entry("rule3", "Ads"), Map.entry("cache", "true"), Map.entry("resume-from", ""),
+                Map.entry("clstar-classpath", System.getProperty("clstar.classpath", "build/clstar/lib/*")),
+                Map.entry("hads-max-tests", "10000"), Map.entry("hads-timeout-seconds", "1200"));
         defaults.forEach(config::setProperty);
         Set<String> supplied = new HashSet<>();
         for (int i = 1; i < args.length; i += 2) {
@@ -61,12 +67,13 @@ public class Benchmark {
         }
         int repetitions = positive(config, "repetitions"), attempts = positive(config, "max-attempts");
         int timeout = positive(config, "timeout-seconds"), heap = positive(config, "heap-mb");
+        positive(config, "hads-max-tests"); positive(config, "hads-timeout-seconds");
         long masterSeed = Long.parseLong(config.getProperty("seed"));
         if (attempts < repetitions) throw new IllegalArgumentException("max-attempts must be >= repetitions");
         Rule2.valueOf(config.getProperty("rule2")); Rule3.valueOf(config.getProperty("rule3"));
         if (!Set.of("true", "false").contains(config.getProperty("cache"))) throw new IllegalArgumentException("Invalid cache flag");
         List<String> algorithms = Arrays.asList(config.getProperty("algorithms").split(",", -1));
-        if (new HashSet<>(algorithms).size() != algorithms.size() || algorithms.stream().anyMatch(a -> !Set.of("nclsharp", "clsharp", "lsharp").contains(a)))
+        if (new HashSet<>(algorithms).size() != algorithms.size() || algorithms.stream().anyMatch(a -> !Set.of("nclsharp", "clsharp", "lsharp", "clstar-cached", "clstar-no-cache").contains(a)))
             throw new IllegalArgumentException("Invalid algorithms");
         List<String> files = readModelList(Path.of(args[0]));
         Path out = Path.of(config.getProperty("output-dir")).toAbsolutePath();
@@ -87,13 +94,15 @@ public class Benchmark {
         writeHashes(out.resolve("inputs.sha256"), files);
         boolean complete = true;
         for (String alg : algorithms) Files.writeString(out.resolve(alg + "_results.csv"), HEADER + "\n");
-        try (BufferedWriter log = Files.newBufferedWriter(out.resolve("attempts.csv"))) {
-            log.write("file,algorithm,attempt,repetition,seed,partialSeed,status,elapsedMillis,detail\n");
+        Files.writeString(out.resolve("attempts.csv"), "file,algorithm,attempt,repetition,seed,partialSeed,status,elapsedMillis,detail\n");
+        Map<String, int[]> progress = importPrevious(config, files, algorithms, out, repetitions);
+        try (BufferedWriter log = Files.newBufferedWriter(out.resolve("attempts.csv"), StandardOpenOption.APPEND)) {
             for (String file : files) {
                 for (String alg : algorithms) {
                     try (BufferedWriter csv = Files.newBufferedWriter(out.resolve(alg + "_results.csv"), StandardOpenOption.APPEND)) {
-                        int successes = 0;
-                        for (int attempt = 1; attempt <= attempts && successes < repetitions; attempt++) {
+                        int[] prior = progress.getOrDefault(file + ":" + alg, new int[2]);
+                        int successes = prior[0];
+                        for (int attempt = prior[1] + 1; attempt <= attempts && successes < repetitions; attempt++) {
                             // Same seed pair for corresponding attempts across algorithms; stable under list reordering.
                             Random random = new Random(masterSeed ^ ((long) file.hashCode() << 32) ^ attempt);
                             int seed = random.nextInt(), partialSeed = random.nextInt();
@@ -102,11 +111,19 @@ public class Benchmark {
                             Path detail = out.resolve("attempts/" + id + ".log");
                             long start = System.nanoTime();
                             String status;
-                            Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                                    "-Xmx" + heap + "m", "-DLOG_LEVEL=WARN", "-cp", System.getProperty("java.class.path"),
-                                    Benchmark.class.getName(), "--worker", out.resolve("run.properties").toString(), file, alg,
-                                    Integer.toString(seed), Integer.toString(partialSeed), result.toString())
-                                    .redirectErrorStream(true).redirectOutput(detail.toFile()).start();
+                            List<String> command = new ArrayList<>(List.of(
+                                    Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-Xmx" + heap + "m", "-DLOG_LEVEL=WARN", "-cp"));
+                            if (alg.startsWith("clstar-")) {
+                                command.addAll(List.of(config.getProperty("clstar-classpath"), "ClStarTrial",
+                                        MODEL_DIRECTORY.resolve(file).toString(), Boolean.toString(alg.equals("clstar-cached")),
+                                        Integer.toString(seed), Integer.toString(partialSeed), result.toString(),
+                                        Path.of("hybrid-ads/build/main").toAbsolutePath().toString(),
+                                        config.getProperty("hads-max-tests"), config.getProperty("hads-timeout-seconds")));
+                            } else {
+                                command.addAll(List.of(System.getProperty("java.class.path"), Benchmark.class.getName(), "--worker",
+                                        out.resolve("run.properties").toString(), file, alg, Integer.toString(seed), Integer.toString(partialSeed), result.toString()));
+                            }
+                            Process process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(detail.toFile()).start();
                             activeWorker = process;
                             if (!process.waitFor(timeout, TimeUnit.SECONDS)) {
                                 process.destroy(); // Worker shutdown hook terminates its native oracle.
@@ -145,6 +162,74 @@ public class Benchmark {
         if (!complete) throw new IllegalStateException("Benchmark incomplete; see attempts.csv and attempt logs");
     }
 
+    private static Map<String, int[]> importPrevious(Properties config, List<String> files,
+            List<String> algorithms, Path out, int repetitions) throws Exception {
+        Map<String, int[]> progress = new HashMap<>();
+        String source = config.getProperty("resume-from");
+        if (source.isEmpty()) return progress;
+        Path previous = Path.of(source).toAbsolutePath();
+        Properties old = load(previous.resolve("run.properties"));
+        for (String key : List.of("algorithms", "seed", "rule2", "rule3", "cache", "oracle", "hybrid-ads-revision")) {
+            if (!Objects.equals(old.getProperty(key), config.getProperty(key)))
+                throw new IllegalArgumentException("Resume configuration mismatch: " + key);
+        }
+        if (algorithms.stream().anyMatch(a -> a.startsWith("clstar-"))) {
+            for (String key : List.of("hads-max-tests", "hads-timeout-seconds"))
+                if (!Objects.equals(old.getProperty(key), config.getProperty(key)))
+                    throw new IllegalArgumentException("Resume configuration mismatch: " + key);
+        }
+        if (!Files.readAllLines(previous.resolve("models.txt")).equals(files))
+            throw new IllegalArgumentException("Resume model list mismatch");
+        // Verify the model bytes, not just their names, against the original run.
+        Set<Path> verifiedModels = new HashSet<>();
+        for (String line : Files.readAllLines(previous.resolve("inputs.sha256"))) {
+            int split = line.indexOf("  ");
+            if (split < 0) continue;
+            Path path = Path.of(line.substring(split + 2));
+            if (path.startsWith(MODEL_DIRECTORY)) {
+                String actual = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+                if (!actual.equals(line.substring(0, split))) throw new IllegalArgumentException("Changed resume model: " + path);
+                verifiedModels.add(path);
+            }
+        }
+        for (String model : files) if (!verifiedModels.contains(MODEL_DIRECTORY.resolve(model)))
+            throw new IllegalArgumentException("Missing resume model hash: " + model);
+        Files.copy(previous.resolve("run.properties"), out.resolve("imported-run.properties"));
+        Files.copy(previous.resolve("inputs.sha256"), out.resolve("imported-inputs.sha256"));
+        List<String> imported = new ArrayList<>();
+        List<String> previousAttempts = Files.readAllLines(previous.resolve("attempts.csv"));
+        for (String line : previousAttempts.subList(1, previousAttempts.size())) {
+            String[] row = line.split(",", -1);
+            if (row.length != 9) throw new IllegalArgumentException("Invalid previous attempt record");
+            if (!files.contains(row[0]) || !algorithms.contains(row[1])) throw new IllegalArgumentException("Unknown imported model/algorithm");
+            String key = row[0] + ":" + row[1];
+            int[] state = progress.computeIfAbsent(key, ignored -> new int[2]);
+            state[1] = Math.max(state[1], Integer.parseInt(row[2]));
+            Path detail = Path.of(row[8]);
+            if (detail.isAbsolute() || !detail.normalize().startsWith("attempts") || detail.getNameCount() != 2)
+                throw new IllegalArgumentException("Invalid imported detail path");
+            Files.copy(previous.resolve(detail), out.resolve(detail));
+            Path rawPath = Path.of(row[8].replace(".log", ".properties"));
+            if (Files.exists(previous.resolve(rawPath))) Files.copy(previous.resolve(rawPath), out.resolve(rawPath));
+            if (row[6].equals("success") || row[6].equals("surplus_success")) {
+                if (state[0] < repetitions) {
+                    Properties raw = load(previous.resolve(rawPath));
+                    if (!Boolean.parseBoolean(raw.getProperty("learned"))) throw new IllegalArgumentException("Invalid imported success");
+                    Files.writeString(out.resolve(row[1] + "_results.csv"), row[0] + "," + raw.getProperty("size") + ","
+                            + (Long.parseLong(raw.getProperty("learnInputs")) - Long.parseLong(raw.getProperty("minCeInputs"))) + ","
+                            + (Long.parseLong(raw.getProperty("learnResets")) - Long.parseLong(raw.getProperty("minCeResets"))) + ","
+                            + raw.getProperty("testInputs") + "," + raw.getProperty("testResets") + "\n", StandardOpenOption.APPEND);
+                    row[6] = "success";
+                    state[0]++;
+                } else row[6] = "surplus_success"; // Retained for provenance; outside the new repetition target.
+            }
+            imported.add(String.join(",", row));
+        }
+        Files.write(out.resolve("attempts.csv"), imported, StandardOpenOption.APPEND);
+        System.out.println("Imported previous attempts from " + previous);
+        return progress;
+    }
+
     private static void writeHashes(Path destination, List<String> models) throws Exception {
         Set<Path> paths = new TreeSet<>();
         for (String model : models) paths.add(MODEL_DIRECTORY.resolve(model));
@@ -155,6 +240,9 @@ public class Benchmark {
             try (var stream = Files.walk(Path.of("src/main/java"))) {
                 stream.filter(Files::isRegularFile).forEach(paths::add);
             }
+        }
+        for (Path dir : List.of(Path.of("baseline/clstar/src"), Path.of("build/clstar/lib"), Path.of("clstar/lib"))) {
+            if (Files.isDirectory(dir)) try (var stream = Files.walk(dir)) { stream.filter(Files::isRegularFile).forEach(paths::add); }
         }
         Path code = Path.of(Benchmark.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         if (Files.isRegularFile(code)) paths.add(code);
