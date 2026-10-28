@@ -42,7 +42,8 @@ mkdir -p results
 | `lsharp` | original Rust L# | `benchmarks/lsharp-models.txt` (30; 100–300 states) | `results/lsharp/` |
 
 First try the five-model smoke list (4, 12, 32, 36 and 64 states), with three
-successful repetitions per algorithm. Run these commands one at a time:
+successful repetitions per algorithm. Allow approximately **5 minutes** for the
+three smoke commands, excluding image builds/downloads. Run them one at a time:
 
 ```bash
 docker run --rm -v "$(pwd)/results:/results" clsharp benchmarks/smoke.txt \
@@ -60,6 +61,13 @@ docker run --rm -v "$(pwd)/results:/results" clsharp
 docker run --rm -v "$(pwd)/results:/results" clstar
 docker run --rm -v "$(pwd)/results:/results" lsharp
 ```
+
+For the two main learners, the historical estimate is **about 3 hours combined**:
+NCLSharp about 58 minutes and CLSharp about 116 minutes, on the 114 paper models
+with ten repetitions each. This estimate uses `test_results.csv` and excludes
+image builds, worker startup and retry overhead; hardware and code changes affect
+actual times. CL* and original Rust L# are not included in that total.
+[Calculation and timing details](results/README.md#expected-running-time).
 
 ## Options and defaults
 
