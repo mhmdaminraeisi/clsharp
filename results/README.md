@@ -20,31 +20,15 @@ Failures/timeouts remain in the attempt ledger; only successes enter summary CSV
 Allow approximately **5 minutes** for the five-model, three-repeat smoke sequence
 across the three images, after image builds and downloads have completed.
 
-The full-run estimate below covers only NCLSharp and CLSharp on the **114 models**
-in [`benchmarks/paper-models.txt`](../benchmarks/paper-models.txt), with **10 successful
+Allow approximately **8 hours combined** for the full NCLSharp and CLSharp
+benchmark on the **114 models** in
+[`benchmarks/paper-models.txt`](../benchmarks/paper-models.txt), with **10 successful
 repetitions each**, executed sequentially (2,280 successful trials in total).
-The source is the successful `nclsharp-ADS` / `clsharp-ADS` rows in
-[`test_results.csv`](../test_results.csv). Every model/algorithm pair has three
-historical observations. `RunTime` is in milliseconds, as recorded by the historical
-Java runner using `System.currentTimeMillis()`.
 
-For each model and algorithm, average its recorded `RunTime`, multiply by 10,
-then sum over the selected models and algorithms:
-
-```text
-estimated milliseconds = sum_model sum_algorithm (mean(RunTime) * 10)
-```
-
-| Algorithm | Estimated milliseconds, 10 repetitions per model | Approximate duration |
-| --- | ---: | ---: |
-| NCLSharp | 3,477,940 | 57.97 minutes |
-| CLSharp | 6,981,570 | 116.36 minutes |
-| Combined | 10,459,510 | 174.33 minutes (about 2 h 54 min; allow about 3 h) |
-
-This is a historical extrapolation. It excludes image builds/downloads, worker
-startup, result-file I/O and retry overhead. Actual times depend on hardware,
-resource settings and the current implementation. It does not estimate CL* or
-original Rust L# full-run times.
+This is a planning estimate, not a measured runtime guarantee. Actual times depend
+on hardware, resource settings, process startup, file I/O and retries. Image builds
+and downloads are separate. CL* and original Rust L# full-run times are not included
+in this estimate.
 
 ## Check completion
 

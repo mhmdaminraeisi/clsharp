@@ -65,12 +65,11 @@ docker run --rm -v "$(pwd)/results:/results" clstar
 docker run --rm -v "$(pwd)/results:/results" lsharp
 ```
 
-For the two main learners, the historical estimate is **about 3 hours combined**:
-NCLSharp about 58 minutes and CLSharp about 116 minutes, on the 114 paper models
-with ten repetitions each. This estimate uses `test_results.csv` and excludes
-image builds, worker startup and retry overhead; hardware and code changes affect
-actual times. CL* and original Rust L# are not included in that total.
-[Calculation and timing details](results/README.md#expected-running-time).
+Allow approximately **8 hours combined** for the full NCLSharp and CLSharp
+benchmark on the 114 paper models with ten repetitions each. This is a planning
+estimate; actual times depend on hardware and resource settings. Image builds and
+downloads are separate. CL* and original Rust L# are not included in this estimate.
+[Timing details](results/README.md#expected-running-time).
 
 ## Options and defaults
 
