@@ -57,18 +57,19 @@ Original filenames are preserved. Models are read from the shared
 
 ## Run
 
-Full L# subset, ten successful repetitions per model (300 rows):
+Full L# subset, ten successful repetitions per model (300 rows). Resource limits
+are optional; see the [parameter example and defaults](../../README.md#options-and-defaults):
 
 ```bash
 mkdir -p results/lsharp
-docker run --name lsharp-rust-full --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp
+docker run --name lsharp-rust-full -v "$(pwd)/results:/results" lsharp
 ```
 
 One-repetition subset run (30 trials):
 
 ```bash
 mkdir -p results/smoke/lsharp
-docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
+docker run --rm -v "$(pwd)/results:/results" lsharp benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
 python3 scripts/check_results.py results/smoke/lsharp > results/smoke/lsharp/validation.json
 ```
 

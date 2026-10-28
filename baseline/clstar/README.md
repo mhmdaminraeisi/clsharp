@@ -30,12 +30,13 @@ validation run. Output files are `clstar-cached_results.csv` and
 hashes as the main benchmark. Failures, incorrect learned models and timeouts are
 not exported as successful rows. `--help` lists retry, timeout and heap options.
 
-The dedicated Docker image builds all dependencies and the shared native generator:
+The dedicated Docker image builds all dependencies and the shared native generator.
+Optional resource settings are explained in the [parameter guide](../../README.md#options-and-defaults):
 
 ```bash
 docker build -f Dockerfile.clstar -t clstar .
 mkdir -p results/smoke/clstar-docker
-docker run --rm --memory=2g --cpus=2 -v "$(pwd)/results:/results" clstar benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir /results/smoke/clstar-docker
+docker run --rm -v "$(pwd)/results:/results" clstar benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir /results/smoke/clstar-docker
 ```
 
 ## Oracle and cache semantics

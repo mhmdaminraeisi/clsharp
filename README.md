@@ -45,42 +45,142 @@ First try the five-model smoke list (4, 12, 32, 36 and 64 states), with three
 successful repetitions per algorithm. Run these commands one at a time:
 
 ```bash
-docker run --rm --memory=2g --cpus=2 -v "$(pwd)/results:/results" clsharp benchmarks/smoke.txt \
+docker run --rm -v "$(pwd)/results:/results" clsharp benchmarks/smoke.txt \
   --repetitions 3 --seed 2027 --output-dir /results/smoke-manual/main
-docker run --rm --memory=2g --cpus=2 -v "$(pwd)/results:/results" clstar benchmarks/smoke.txt \
+docker run --rm -v "$(pwd)/results:/results" clstar benchmarks/smoke.txt \
   --repetitions 3 --seed 2027 --output-dir /results/smoke-manual/clstar
-docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp benchmarks/smoke.txt \
+docker run --rm -v "$(pwd)/results:/results" lsharp benchmarks/smoke.txt \
   --repetitions 3 --seed 2027 --output-dir /results/smoke-manual/lsharp
 ```
 
 For full runs, omit the smoke manifest and options to use the table's defaults:
 
 ```bash
-docker run --rm --memory=2g --cpus=2 -v "$(pwd)/results:/results" clsharp
-docker run --rm --memory=5g --cpus=2 -v "$(pwd)/results:/results" clstar --heap-mb 4096
-docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp
+docker run --rm -v "$(pwd)/results:/results" clsharp
+docker run --rm -v "$(pwd)/results:/results" clstar
+docker run --rm -v "$(pwd)/results:/results" lsharp
 ```
 
-Default: 10 successful repetitions, seed 2027, ADS rules, up to 20 attempts per
-model/algorithm, 1200 seconds per attempt. A first positional argument replaces the
-model list; options follow the image name (or the manifest). Use `--algorithms clsharp`
-to run only CLSharp, or `--rule2 SepSeq --rule3 Ads --cache true` to change its settings.
+## Options and defaults
+
+The full-run commands above do not specify CPU, container RAM or Java heap limits.
+The following three Bash examples show optional configuration for each family.
+They use the paper manifests and fresh output folders; choose the smoke manifest
+and `--repetitions 3` for shorter checks.
+
+**CLSharp and NCLSharp:**
+
+```bash
+docker run --rm \
+  --memory=4g --cpus=2 \
+  -v "$(pwd)/results:/results" \
+  clsharp benchmarks/paper-models.txt \
+  --algorithms nclsharp,clsharp \
+  --output-dir /results/configured-main \
+  --resume-from "" \
+  --repetitions 10 \
+  --max-attempts 20 \
+  --seed 2027 \
+  --timeout-seconds 1200 \
+  --heap-mb 2048 \
+  --rule2 Ads \
+  --rule3 Ads \
+  --cache true
+```
+
+**CL* with and without caching:**
+
+```bash
+docker run --rm \
+  --memory=4g --cpus=2 \
+  -v "$(pwd)/results:/results" \
+  clstar benchmarks/paper-models.txt \
+  --algorithms clstar-cached,clstar-no-cache \
+  --output-dir /results/configured-clstar \
+  --resume-from "" \
+  --repetitions 10 \
+  --max-attempts 20 \
+  --seed 2027 \
+  --timeout-seconds 1200 \
+  --heap-mb 2048 \
+  --clstar-classpath '/opt/nclsharp/clstar/lib/*' \
+  --hads-max-tests 10000 \
+  --hads-timeout-seconds 1200
+```
+
+**Original Rust L#:**
+
+```bash
+docker run --rm \
+  --memory=4g --cpus=2 \
+  -v "$(pwd)/results:/results" \
+  lsharp benchmarks/lsharp-models.txt \
+  --algorithms lsharp-rust \
+  --output-dir /results/configured-lsharp \
+  --resume-from "" \
+  --repetitions 10 \
+  --max-attempts 20 \
+  --seed 2027 \
+  --timeout-seconds 1200 \
+  --rule2 Ads \
+  --rule3 Ads \
+  --rust-lsharp-executable /opt/nclsharp/lsharp/lsharp \
+  --rust-extra-states 10 \
+  --rust-random-length 10 \
+  --rust-cache-rules false \
+  --rust-threads 2
+```
+
+Docker options go **before** the image name; benchmark options go **after** it.
+The values above are examples; the defaults below apply when an option is omitted.
+`--resume-from ""` explicitly starts fresh in Bash; normally omit that option for a
+new run, or supply a compatible previous run's container path to resume.
+
+| Docker option | Meaning | Default when omitted |
+| --- | --- | --- |
+| `--rm` | Remove the container after it exits; mounted outputs remain | Keep the stopped container |
+| `--memory SIZE` | Container RAM cap, e.g. `4g` | No explicit container cap |
+| `--cpus N` | Container CPU quota, e.g. `2` | No explicit container quota |
+| `-v HOST:CONTAINER` | Mount host files; the example persists outputs in `results/` | No host-folder mount |
+
+| Benchmark argument | Meaning | Default in Docker |
+| --- | --- | --- |
+| First positional argument | Model manifest: one existing `.dot` filename per line | Per-image manifest in the table above |
+| `--algorithms LIST` | Comma-separated learner names for the selected image | Per-image algorithms in the table above |
+| `--output-dir DIR` | Fresh output directory, using a container path | `/results/main`, `/results/clstar`, or `/results/lsharp`, by image |
+| `--resume-from DIR` | Import finished attempts from a compatible previous run | Empty: start fresh |
+| `--repetitions N` | Successful runs per model/algorithm | `10` |
+| `--max-attempts N` | Total attempt cap per model/algorithm, including imported attempts | `20`; must be at least repetitions |
+| `--seed N` | Master seed used to derive individual trial seeds | `2027` |
+| `--timeout-seconds N` | Hard timeout for an entire attempt | `1200` seconds |
+| `--heap-mb N` | Maximum Java worker heap; not a Rust memory limit | `1024` MiB |
+| `--rule2 Nothing\|SepSeq\|Ads` | Rule 2 strategy for main learners and Rust L# | `Ads` |
+| `--rule3 SepSeq\|Ads` | Rule 3 strategy for main learners and Rust L# | `Ads` |
+| `--cache true\|false` | Cache for the main Java learners; CL* mode is selected by its algorithm name | `true` |
+| `--clstar-classpath CP` | Separate LearnLib 0.16 classpath for CL* | `/opt/nclsharp/clstar/lib/*` |
+| `--hads-max-tests N` | CL* test budget per equivalence-query call | `10000` |
+| `--hads-timeout-seconds N` | CL* timeout per equivalence-query call | `1200` seconds |
+| `--rust-lsharp-executable PATH` | Original Rust L# executable, available in the `lsharp` image | `/opt/nclsharp/lsharp/lsharp` |
+| `--rust-extra-states N` | Rust HADS extra-state parameter (`k`) | `10` |
+| `--rust-random-length N` | Rust HADS expected random infix length | `10` |
+| `--rust-cache-rules true\|false` | Original Rust rule cache | `false` |
+| `--rust-threads N` | Rust Rayon thread count | `2` |
+
+Omitting `--memory` and `--cpus` allows use of the resources available to Docker;
+on macOS/Windows, Docker Desktop's own allocation still applies. Omitting `--heap-mb`
+keeps the Java worker default above. Trials run sequentially; removing CPU limits
+does not make them parallel. Only options for the selected algorithms affect learning.
+
+Each attempt derives its seeds from the master seed, model name and attempt number.
+Corresponding attempts across algorithms receive the same seed pair; actual seeds
+are recorded in `attempts.csv`. The optional local Java L# uses `--algorithms lsharp`;
+original Rust L# uses `lsharp-rust` in the `lsharp` image.
+
+Model manifests ignore blank lines and lines starting with `#`. To use a host-edited
+manifest without rebuilding, add `-v "$(pwd)/benchmarks:/manifests:ro"` before the image
+name and pass `/manifests/my-models.txt` after it.
 Run `docker run --rm clsharp --help`; replace the image name for other images' help.
-
-Model manifests contain one existing `.dot` filename per line; blank lines and
-lines starting with `#` are ignored. To use a host-edited manifest without rebuilding, add
-`-v "$(pwd)/benchmarks:/manifests:ro"` and pass `/manifests/my-models.txt`.
-
-`--memory` and `--cpus` are optional container limits. Without them, resources are
-still bounded by Docker Desktop's allocation on macOS (Settings → Resources).
-Java workers retain their own default 1024 MiB heap; change it with `--heap-mb N`.
-Rust uses `--rust-threads 2` by default. The runner processes trials sequentially;
-removing CPU limits does not make them parallel.
-
-`--rule2` / `--rule3` apply to main learners and Rust L#; CL* caching is selected
-via `--algorithms clstar-cached` or `clstar-no-cache`. Rust options include
-`--rust-extra-states`, `--rust-random-length`, `--rust-cache-rules` and `--rust-threads`.
-`docker run --rm lsharp --native --help` exposes the original Rust CLI.
+`docker run --rm lsharp --native --help` exposes the original Rust CLI separately.
 See [L#](baseline/lsharp-support/README.md) and [CL*](baseline/clstar/README.md).
 
 Each run writes `<algorithm>_results.csv`, attempt logs/statuses, configuration,
