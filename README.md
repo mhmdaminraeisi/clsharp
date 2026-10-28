@@ -1,14 +1,23 @@
 # NCLSharp and CLSharp
 
+Requested AE badges: **Available** and **Functional**. We are not applying for **Reusable**.
+
 Compositional active learning of Mealy machines. **CLSharp (CL#)** is the main
 algorithm; **NCLSharp (Naive CL#)** is its naive variant.
 
 Artifact DOI: [10.5281/zenodo.23727283](https://doi.org/10.5281/zenodo.23727283).
-Requested AE badges: **Available** and **Functional**. We are not applying for **Reusable**.
 
-Tested on a MacBook Pro (Intel Core i7, 2.6 GHz, 6 cores, 16 GB RAM), macOS 15.1.1,
-Docker Engine 27.3.1, Linux/amd64 containers. Docker had about 7.65 GiB RAM available.
-Other architectures have not been validated.
+## Tested systems
+
+| System | Operating system | Processor | Host RAM |
+| --- | --- | --- | --- |
+| MacBook Pro | macOS 15.1.1 | Intel Core i7, 2.6 GHz, 6 cores | 16 GB |
+| Second test system | Windows 11 | Intel Core i7 (exact model not recorded) | 12 GB |
+
+The Mac used Docker Engine 27.3.1 with Linux/amd64 containers and about 7.65 GiB
+allocated to Docker. The Windows configuration is author-reported; its Docker
+version and resource allocation were not recorded. Other architectures have not
+been validated.
 
 ## Structure
 
