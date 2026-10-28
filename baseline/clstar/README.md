@@ -14,14 +14,14 @@ Build with `./gradlew installClstar`; `runBenchmark` also builds it automaticall
 Five-model check of both cache modes:
 
 ```bash
-./gradlew runBenchmark --args="benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir build/clstar-smoke"
-python3 scripts/check_results.py build/clstar-smoke > build/clstar-smoke/validation.json
+./gradlew runBenchmark --args="benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir results/smoke/clstar"
+python3 scripts/check_results.py results/smoke/clstar > results/smoke/clstar/validation.json
 ```
 
 Full shared-model list (ten repetitions, as described in the paper):
 
 ```bash
-./gradlew runBenchmark --args="benchmarks/models.txt --algorithms clstar-cached,clstar-no-cache --repetitions 10 --seed 2027 --output-dir build/clstar-results"
+./gradlew runBenchmark --args="benchmarks/paper-models.txt --algorithms clstar-cached,clstar-no-cache --repetitions 10 --seed 2027 --output-dir results/clstar"
 ```
 
 Each run needs a fresh output directory. Use `--repetitions 3` for a shorter
@@ -30,12 +30,12 @@ validation run. Output files are `clstar-cached_results.csv` and
 hashes as the main benchmark. Failures, incorrect learned models and timeouts are
 not exported as successful rows. `--help` lists retry, timeout and heap options.
 
-Docker builds both Java implementations and only one native generator:
+The dedicated Docker image builds all dependencies and the shared native generator:
 
 ```bash
-docker build -t nclsharp .
-mkdir -p build/clstar-smoke-docker
-docker run --rm --memory=2g --cpus=2 -v "$(pwd)/build/clstar-smoke-docker:/results" nclsharp institute.teias.Benchmark benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir /results
+docker build -f Dockerfile.clstar -t clstar .
+mkdir -p results/smoke/clstar-docker
+docker run --rm --memory=2g --cpus=2 -v "$(pwd)/results:/results" clstar benchmarks/smoke.txt --algorithms clstar-cached,clstar-no-cache --repetitions 3 --seed 2027 --output-dir /results/smoke/clstar-docker
 ```
 
 ## Oracle and cache semantics
@@ -72,11 +72,7 @@ baseline protocol; they do not assert exact reproduction of unavailable paper da
 ## Accounting and the paper
 
 Each summary CSV has `file,size,learnSymbols,learnResets,TestSymbols,TestResets`.
-Learning is MQ target executions minus **actual** minimization execution deltas,
-including prefix cutting. Logical subset-query lengths are kept separately as
-`logicalMinCeInputs` / `logicalMinCeResets`; subtracting these from cached execution
-counters would be incorrect. This net-minimization convention is the agreed artifact
-reporting convention; the submitted paper does not state it explicitly.
+Per-attempt properties retain the full raw counters for independent validation.
 
 As in the supplied modified runner, the terminal global EQ's actual symbol/reset
 deltas are excluded from reported test costs, while all its tests still run.

@@ -23,3 +23,6 @@
 !baseline/lsharp-support/**
 **/.git
 **/.DS_Store
+!Dockerfile.clstar
+!docker/
+!docker/**

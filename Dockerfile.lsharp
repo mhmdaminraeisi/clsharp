@@ -1,14 +1,28 @@
-# Docker Official Images mirror; override RUST_IMAGE if your registry requires it.
+# syntax=docker/dockerfile:1
 ARG RUST_IMAGE=public.ecr.aws/docker/library/rust:1.98.1-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e
-ARG BASE_IMAGE=nclsharp:latest
+FROM gradle:8.5-jdk21 AS gradle
+FROM eclipse-temurin:21-jdk-jammy AS java-builder
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates cmake g++ git make \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/nclsharp
+COPY --from=gradle /opt/gradle/ /opt/gradle/
+COPY build.gradle settings.gradle ./
+COPY src/ src/
+COPY baseline/clstar/src/ baseline/clstar/src/
+COPY docker/build-java.sh /usr/local/bin/build-java
+# Keep aligned with the hybrid-ads submodule commit.
+ARG HYBRID_ADS_REV=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked sh /usr/local/bin/build-java
+
 FROM ${RUST_IMAGE} AS rust-builder
 WORKDIR /build/lsharp
-COPY baseline/lsharp/Cargo.toml ./Cargo.toml
-COPY baseline/lsharp/src/ ./src/
-COPY baseline/lsharp/benches/*.rs ./benches/
+# Use the populated submodule or the checked-in build-source snapshot.
+COPY baseline/ /source/baseline/
+COPY docker/fetch-lsharp.sh /usr/local/bin/fetch-lsharp
 COPY baseline/lsharp-support/Cargo.lock ./Cargo.lock
 COPY baseline/lsharp-support/source.sha256 baseline/lsharp-support/revision.txt ./
-RUN sha256sum --check source.sha256
+RUN sh /usr/local/bin/fetch-lsharp && sha256sum --check source.sha256
 ENV CARGO_BUILD_JOBS=2
 # A static GNU binary avoids newer-builder/older-runtime glibc incompatibilities.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -23,15 +37,31 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
          printf 'cargoLockSha256=%s\n' "$(sha256sum Cargo.lock | cut -d ' ' -f 1)"; \
          printf 'linkage=static-gnu\n'; } > /out/build.properties
 
-FROM ${BASE_IMAGE} AS runtime
+
+FROM eclipse-temurin:21-jre-jammy AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt/nclsharp
+COPY --from=java-builder /opt/nclsharp/build/install/nclsharp/lib/ ./lib/
+COPY --from=java-builder /opt/nclsharp/build/clstar/lib/ ./clstar/lib/
+COPY --from=java-builder /opt/nclsharp/build-source.sha256 ./build-source.sha256
+COPY --from=java-builder /opt/nclsharp/hybrid-ads/build/main ./hybrid-ads/build/main
+COPY --from=java-builder /opt/nclsharp/hybrid-ads/LICENSE ./hybrid-ads/LICENSE
+COPY baseline/clstar/README.md baseline/clstar/NOTICE.md baseline/clstar/imported-sources.sha256 ./baseline/clstar/
+COPY LICENSE ./LICENSE
+COPY src/main/resources/ ./src/main/resources/
+COPY benchmarks/ ./benchmarks/
+COPY docker/run-benchmark.sh /usr/local/bin/run-benchmark
+ENV HYBRID_ADS_REVISION=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
 COPY --from=rust-builder /out/ ./lsharp/
-COPY baseline/lsharp/README.md baseline/lsharp/Cargo.toml ./lsharp/upstream/
+COPY --from=rust-builder /build/lsharp/README.md /build/lsharp/Cargo.toml ./lsharp/upstream/
 COPY baseline/lsharp-support/README.md ./lsharp/README.md
-COPY benchmarks/lsharp-models.txt ./benchmarks/lsharp-models.txt
-ENV LSHARP_RUST_EXECUTABLE=/opt/nclsharp/lsharp/lsharp
+ENV LSHARP_RUST_EXECUTABLE=/opt/nclsharp/lsharp/lsharp \
+    BENCHMARK_MODELS=benchmarks/lsharp-models.txt \
+    BENCHMARK_ALGORITHMS=lsharp-rust \
+    BENCHMARK_OUTPUT=/results/lsharp
 RUN mkdir -p /tmp/lsharp-startup/log /tmp/lsharp-startup/resumable_config \
     && cd /tmp/lsharp-startup && /opt/nclsharp/lsharp/lsharp --version \
     && rm -rf /tmp/lsharp-startup
-# Inherit the common Java entrypoint; default to the original Rust baseline.
-CMD ["institute.teias.Benchmark", "benchmarks/lsharp-models.txt", "--algorithms", "lsharp-rust", "--output-dir", "/results/lsharp"]
+ENTRYPOINT ["sh", "/usr/local/bin/run-benchmark"]

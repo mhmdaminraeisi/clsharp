@@ -12,13 +12,11 @@ This is a reproducible reference revision, not a claim that it is the exact
 historical binary used for the paper. The TACAS 2022 archive remains available at
 <https://doi.org/10.5281/zenodo.5735533>.
 
-## Build (host needs Git and Docker only)
+## Build (host needs Docker only)
 
 From the repository root:
 
 ```bash
-git submodule update --init baseline/lsharp
-docker build -t nclsharp .
 docker build -f Dockerfile.lsharp -t nclsharp-lsharp .
 ```
 
@@ -28,18 +26,23 @@ builder uses **1.98.1**, pinned by version and image digest, with `--locked`.
 upstream does not track a lockfile. Crate checksums are included. The lock requires
 a newer compiler than the upstream manifest's original minimum of 1.71.
 `source.sha256` checks the copied source/manifest against this pinned revision.
-The final binary is statically linked and stripped, and the final image reuses
-the main project's Java runtime/benchmark adapter rather than shipping a Rust SDK.
+The final binary is statically linked and stripped. The final image builds the
+shared Java benchmark adapter and does not ship a Rust SDK.
 
 The first build requires network access for images and crates. The default Rust
-base uses the Docker Official Images mirror on public ECR. `RUST_IMAGE` and
-`BASE_IMAGE` can be overridden with build arguments if needed. The main image must
-be rebuilt after benchmark adapter changes. After building, runs need no network.
+base uses the Docker Official Images mirror on public ECR. Override `RUST_IMAGE`
+with a build argument if needed. The Java/native prerequisites are built in this same Dockerfile. There is no
+dependency on a previously built project image. After building, runs need no network.
 
-Only initialize `baseline/lsharp`; its optional nested LearnLib/Hybrid-ADS
-submodules are not used by this Rust configuration and need not be fetched.
-For an archived artifact, include the populated submodule source: `git archive`
-of the parent alone omits Git submodule contents.
+A populated `baseline/lsharp` is used directly after checksum verification; otherwise
+the build extracts `source.tar.gz` from this directory, checking `archive.sha256`
+and then the individual source checksums. The archive contains only unchanged
+Cargo.toml, README, Rust source and benchmark declarations from the pinned revision
+(no model suite, results or nested submodules). Its optional nested
+LearnLib/Hybrid-ADS submodules are not used and are not fetched.
+The full submodule remains available for development; `git archive` of the parent
+alone omits its contents. The build-source snapshot keeps Docker builds usable
+from such an archive.
 
 This integration was tested in Linux/amd64 Docker containers. Upstream requires
 a 64-bit platform; other architectures have not been validated here.
@@ -65,7 +68,7 @@ One-repetition subset run (30 trials):
 
 ```bash
 mkdir -p results/smoke/lsharp
-docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" nclsharp-lsharp institute.teias.Benchmark benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
+docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" nclsharp-lsharp benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
 python3 scripts/check_results.py results/smoke/lsharp > results/smoke/lsharp/validation.json
 ```
 
@@ -127,10 +130,21 @@ Outputs under the mounted directory:
 
 The summary size is the input model size; upstream `num_states` describes the
 learned hypothesis and is kept separately. Rust learning/testing counters are
-preserved unchanged. Upstream exports no separate minCe counter; the adapter does
-not invent a zero measurement or subtract an estimated value. This differs from
-the explicit partition-minimization subtraction in the compositional learners;
-resolve/report the convention when producing cross-project plots.
+preserved unchanged, following the upstream counter convention. Protocol differences
+are documented in [BASELINES.md](../../benchmarks/BASELINES.md).
+
+All common options can follow the image name directly, including `--seed`,
+`--repetitions`, `--rule2`, `--rule3`, `--output-dir`, and Rust-specific settings.
+`docker run --rm nclsharp-lsharp --help` lists them. For upstream-only options:
+
+```bash
+docker run --rm -v "$(pwd)/results:/results" nclsharp-lsharp --native --help
+```
+
+Native mode uses `/results/lsharp/native` as its isolated working directory.
+It accepts the original CLI without translating flags; its raw CSV schema differs
+from the common runner, and repetition/attempt handling is then the caller's job.
+
 
 ## Checks
 
