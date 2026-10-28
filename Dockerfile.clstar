@@ -12,7 +12,8 @@ COPY baseline/clstar/src/ baseline/clstar/src/
 COPY docker/build-java.sh /usr/local/bin/build-java
 # Keep aligned with the hybrid-ads submodule commit.
 ARG HYBRID_ADS_REV=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
-RUN --mount=type=cache,target=/root/.gradle,sharing=locked sh /usr/local/bin/build-java
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked sed -i 's/\r$//' /usr/local/bin/build-java \
+    && sh /usr/local/bin/build-java
 
 FROM eclipse-temurin:21-jre-jammy AS runtime
 RUN apt-get update \
@@ -29,6 +30,7 @@ COPY LICENSE ./LICENSE
 COPY src/main/resources/ ./src/main/resources/
 COPY benchmarks/ ./benchmarks/
 COPY docker/run-benchmark.sh /usr/local/bin/run-benchmark
+RUN sed -i 's/\r$//' /usr/local/bin/run-benchmark
 ENV HYBRID_ADS_REVISION=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
 ENV BENCHMARK_MODELS=benchmarks/paper-models.txt \
     BENCHMARK_ALGORITHMS=clstar-cached,clstar-no-cache \

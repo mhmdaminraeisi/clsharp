@@ -13,7 +13,8 @@ COPY baseline/clstar/src/ baseline/clstar/src/
 COPY docker/build-java.sh /usr/local/bin/build-java
 # Keep aligned with the hybrid-ads submodule commit.
 ARG HYBRID_ADS_REV=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
-RUN --mount=type=cache,target=/root/.gradle,sharing=locked sh /usr/local/bin/build-java
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked sed -i 's/\r$//' /usr/local/bin/build-java \
+    && sh /usr/local/bin/build-java
 
 FROM ${RUST_IMAGE} AS rust-builder
 WORKDIR /build/lsharp
@@ -22,7 +23,8 @@ COPY baseline/ /source/baseline/
 COPY docker/fetch-lsharp.sh /usr/local/bin/fetch-lsharp
 COPY baseline/lsharp-support/Cargo.lock ./Cargo.lock
 COPY baseline/lsharp-support/source.sha256 baseline/lsharp-support/revision.txt ./
-RUN sh /usr/local/bin/fetch-lsharp && sha256sum --check source.sha256
+RUN sed -i 's/\r$//' /usr/local/bin/fetch-lsharp \
+    && sh /usr/local/bin/fetch-lsharp && sha256sum --check source.sha256
 ENV CARGO_BUILD_JOBS=2
 # A static GNU binary avoids newer-builder/older-runtime glibc incompatibilities.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -53,6 +55,7 @@ COPY LICENSE ./LICENSE
 COPY src/main/resources/ ./src/main/resources/
 COPY benchmarks/ ./benchmarks/
 COPY docker/run-benchmark.sh /usr/local/bin/run-benchmark
+RUN sed -i 's/\r$//' /usr/local/bin/run-benchmark
 ENV HYBRID_ADS_REVISION=f23946f00c1c111c9b061b6f43d1ffe8b32582bd
 COPY --from=rust-builder /out/ ./lsharp/
 COPY --from=rust-builder /build/lsharp/README.md /build/lsharp/Cargo.toml ./lsharp/upstream/
