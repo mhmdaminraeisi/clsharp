@@ -47,7 +47,8 @@ bin/
 logs/
 
 # Generated experiment outputs and local plotting inputs.
-results/
+results/*
+!results/README.md
 plot/*.csv
 plot/figures/
 plot/.venv/

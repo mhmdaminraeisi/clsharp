@@ -29,7 +29,7 @@ public class Benchmark {
     private static final String USAGE = """
             Usage: Benchmark <model-list> [options]
               --resume-from DIR      import prior attempts into a fresh output directory
-              --output-dir DIR       default: build/benchmark-results (fresh directory)
+              --output-dir DIR       default: results/main (fresh directory)
               --algorithms LIST      comma-separated nclsharp,clsharp,lsharp,clstar-cached,clstar-no-cache,lsharp-rust; default nclsharp,clsharp
               --repetitions N         successful runs per model/algorithm; default 10
               --max-attempts N        total attempts per model/algorithm; default 20
@@ -56,7 +56,7 @@ public class Benchmark {
         if (args.length == 0 || args.length % 2 != 1) throw new IllegalArgumentException(USAGE);
         Properties config = new Properties();
         Map<String, String> defaults = Map.ofEntries(
-                Map.entry("output-dir", "build/benchmark-results"), Map.entry("algorithms", "nclsharp,clsharp"),
+                Map.entry("output-dir", "results/main"), Map.entry("algorithms", "nclsharp,clsharp"),
                 Map.entry("repetitions", "10"), Map.entry("max-attempts", "20"), Map.entry("seed", "2027"),
                 Map.entry("timeout-seconds", "1200"), Map.entry("heap-mb", "1024"),
                 Map.entry("rule2", "Ads"), Map.entry("rule3", "Ads"), Map.entry("cache", "true"), Map.entry("resume-from", ""),
