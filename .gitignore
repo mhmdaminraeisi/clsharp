@@ -45,3 +45,10 @@ bin/
 .idea/
 
 logs/
+
+# Generated experiment outputs and local plotting inputs.
+results/
+plot/*.csv
+plot/figures/
+plot/.venv/
+**/__pycache__/
