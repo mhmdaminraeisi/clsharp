@@ -3,7 +3,7 @@
 Compositional active learning of Mealy machines. **CLSharp (CL#)** is the main
 algorithm; **NCLSharp (Naive CL#)** is its naive variant.
 
-Artifact DOI: [10.5281/zenodo.23726925](https://doi.org/10.5281/zenodo.23726925).
+Artifact DOI: [10.5281/zenodo.23727283](https://doi.org/10.5281/zenodo.23727283).
 Requested AE badges: **Available** and **Functional**. We are not applying for **Reusable**.
 
 Tested on a MacBook Pro (Intel Core i7, 2.6 GHz, 6 cores, 16 GB RAM), macOS 15.1.1,
