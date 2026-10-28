@@ -1,5 +1,42 @@
 # Plot benchmark CSVs
 
+## Docker
+
+From the repository root, copy the desired run outputs here:
+
+```bash
+cp results/smoke-manual/main/clsharp_results.csv \
+   results/smoke-manual/main/nclsharp_results.csv \
+   results/smoke-manual/clstar/clstar-cached_results.csv \
+   results/smoke-manual/clstar/clstar-no-cache_results.csv \
+   results/smoke-manual/lsharp/lsharp-rust_results.csv plot/
+```
+
+Build once, then run (no host Python or package installation needed):
+
+```bash
+docker build -f Dockerfile.plots -t clsharp-plots .
+docker run --rm -v "$(pwd)/plot:/data" clsharp-plots \
+  --clsharp clsharp_results.csv \
+  --nclsharp nclsharp_results.csv \
+  --clstar-cache clstar-cached_results.csv \
+  --clstar-no-cache clstar-no-cache_results.csv \
+  --lsharp lsharp-rust_results.csv \
+  --expected-repeats 3 --min-size 1 \
+  --output-dir figures/smoke-manual
+```
+
+This example writes PNGs and the statistics report to `plot/figures/smoke-manual/`.
+Omit `--output-dir` to use `plot/figures/`. Use relative output paths to keep them
+inside the mounted folder. For ten-repeat paper data, omit `--expected-repeats 3`
+and `--min-size 1`. Input filenames and algorithm flags are unchanged; all algorithm
+flags are optional. CSVs and generated figures are not baked into the image.
+
+`docker run --rm clsharp-plots --help` lists options. Once built, the image runs
+offline. Direct Python usage remains available below.
+
+## Python
+
 Use Python 3.10 or later. From this folder:
 
 ```bash

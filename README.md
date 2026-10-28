@@ -72,19 +72,19 @@ model manifest and protocol. [Output details](results/README.md).
 
 ## Plot results
 
-Use **Python 3.10+**, independently of Docker. Copy the desired output CSVs manually
-into `plot/`, then install requirements and pass their filenames:
+Copy the desired output CSVs into `plot/`. Build once and run from the repository
+root; Python and plotting dependencies are installed inside the image:
 
 ```bash
-cd plot
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements.txt
-python plot_results.py --clsharp clsharp_results.csv --nclsharp nclsharp_results.csv \
+docker build -f Dockerfile.plots -t clsharp-plots .
+docker run --rm -v "$(pwd)/plot:/data" clsharp-plots \
+  --clsharp clsharp_results.csv --nclsharp nclsharp_results.csv \
   --clstar-cache clstar-cached_results.csv --clstar-no-cache clstar-no-cache_results.csv \
   --lsharp lsharp-rust_results.csv
 ```
 
 Every algorithm argument is optional. PNG figures and statistics go to
-`plot/figures/`. Default bars are sample SD; `--errorbars sem` or `ci95` changes
-this. CL* appears only in learning figures. [Plot options and methods](plot/README.md).
+`plot/figures/`. For three-repeat smoke data, add `--expected-repeats 3 --min-size 1`
+and optionally `--output-dir figures/smoke-manual`. Default bars are sample SD;
+`--errorbars sem` or `ci95` changes this. CL* appears only in learning figures.
+[Plot options, CSV copying, and direct Python usage](plot/README.md).

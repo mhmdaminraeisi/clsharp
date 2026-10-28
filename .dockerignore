@@ -26,3 +26,7 @@
 !Dockerfile.clstar
 !docker/
 !docker/**
+!Dockerfile.plots
+!plot/
+!plot/plot_results.py
+!plot/requirements.txt
