@@ -2,7 +2,8 @@
 
 ## Docker
 
-From the repository root, copy the desired run outputs here:
+From the repository root, after the three smoke runs in the main README finish,
+copy their output CSVs here (copy only the files you want to plot):
 
 ```bash
 cp results/smoke-manual/main/clsharp_results.csv \
@@ -76,6 +77,9 @@ Useful options: `--errorbars sd|sem|ci95|none`, `--expected-repeats 10`,
 `--models ../benchmarks/paper-models.txt`, `--fit power-law|semilog|none`,
 `--xscale log|linear`, `--yscale log|linear|symlog`, `--dpi 300`.
 Run `python plot_results.py --help` for all options.
+The `../benchmarks/...` manifest example assumes direct Python execution from
+`plot/`. Docker mounts only `plot/` in the commands above: copy a manifest there
+and pass `--models paper-models.txt`, or mount its host folder separately.
 
 ## Data and statistics
 

@@ -17,7 +17,7 @@ historical binary used for the paper. The TACAS 2022 archive remains available a
 From the repository root:
 
 ```bash
-docker build -f Dockerfile.lsharp -t nclsharp-lsharp .
+docker build -f Dockerfile.lsharp -t lsharp .
 ```
 
 Rust, Cargo, linker tools and crate dependencies are handled by Docker. The Rust
@@ -61,14 +61,14 @@ Full L# subset, ten successful repetitions per model (300 rows):
 
 ```bash
 mkdir -p results/lsharp
-docker run --name lsharp-rust-full --memory=4g --cpus=2 -v "$(pwd)/results:/results" nclsharp-lsharp
+docker run --name lsharp-rust-full --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp
 ```
 
 One-repetition subset run (30 trials):
 
 ```bash
 mkdir -p results/smoke/lsharp
-docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" nclsharp-lsharp benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
+docker run --rm --memory=4g --cpus=2 -v "$(pwd)/results:/results" lsharp benchmarks/lsharp-models.txt --algorithms lsharp-rust --repetitions 1 --seed 2027 --output-dir /results/smoke/lsharp
 python3 scripts/check_results.py results/smoke/lsharp > results/smoke/lsharp/validation.json
 ```
 
@@ -135,10 +135,10 @@ are documented in [BASELINES.md](../../benchmarks/BASELINES.md).
 
 All common options can follow the image name directly, including `--seed`,
 `--repetitions`, `--rule2`, `--rule3`, `--output-dir`, and Rust-specific settings.
-`docker run --rm nclsharp-lsharp --help` lists them. For upstream-only options:
+`docker run --rm lsharp --help` lists them. For upstream-only options:
 
 ```bash
-docker run --rm -v "$(pwd)/results:/results" nclsharp-lsharp --native --help
+docker run --rm -v "$(pwd)/results:/results" lsharp --native --help
 ```
 
 Native mode uses `/results/lsharp/native` as its isolated working directory.
