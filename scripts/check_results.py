@@ -49,9 +49,17 @@ def check(output, baseline):
         for row, attempt in zip(actual, success):
             assert row['file'] == attempt['file']
             raw = properties(output / attempt['detail'].replace('.log', '.properties'))
-            expected = [int(raw['learnInputs']) - int(raw['minCeInputs']),
-                        int(raw['learnResets']) - int(raw['minCeResets']),
-                        int(raw['testInputs']), int(raw['testResets'])]
+            if alg == 'lsharp-rust':
+                assert raw['counterConvention'] == 'upstream-unadjusted' and raw['minCeAvailable'] == 'false'
+                expected = [int(raw[k]) for k in ('learnInputs', 'learnResets', 'testInputs', 'testResets')]
+                original = rows(output / attempt['detail'].removesuffix('.log') / 'upstream.csv')
+                assert len(original) == 1 and original[0]['name'] == row['file'] and original[0]['learned'] == 'true'
+                assert expected == [int(original[0][k]) for k in ('learn_inputs', 'learn_resets', 'test_inputs', 'test_resets')]
+                assert int(raw['hypothesisStates']) == int(original[0]['num_states'])
+            else:
+                expected = [int(raw['learnInputs']) - int(raw['minCeInputs']),
+                            int(raw['learnResets']) - int(raw['minCeResets']),
+                            int(raw['testInputs']), int(raw['testResets'])]
             assert raw['learned'] == 'true' and int(row['size']) == int(raw['size'])
             assert [int(row[k]) for k in metrics] == expected
             assert all(v >= 0 for v in expected)

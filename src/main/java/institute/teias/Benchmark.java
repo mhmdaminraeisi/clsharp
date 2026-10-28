@@ -30,7 +30,7 @@ public class Benchmark {
             Usage: Benchmark <model-list> [options]
               --resume-from DIR      import prior attempts into a fresh output directory
               --output-dir DIR       default: build/benchmark-results (fresh directory)
-              --algorithms LIST      comma-separated nclsharp,clsharp,lsharp,clstar-cached,clstar-no-cache; default nclsharp,clsharp
+              --algorithms LIST      comma-separated nclsharp,clsharp,lsharp,clstar-cached,clstar-no-cache,lsharp-rust; default nclsharp,clsharp
               --repetitions N         successful runs per model/algorithm; default 10
               --max-attempts N        total attempts per model/algorithm; default 20
               --seed N                master seed; default 2027
@@ -42,6 +42,11 @@ public class Benchmark {
               --clstar-classpath CP    default build/clstar/lib/* (isolated LearnLib 0.16)
               --hads-max-tests N       CL* tests per EQ call; default 10000
               --hads-timeout-seconds N CL* timeout per EQ call; default 1200
+              --rust-lsharp-executable PATH  original Rust binary (Dockerfile.lsharp)
+              --rust-extra-states N    Rust HADS k; default 10
+              --rust-random-length N   Rust HADS expected infix length; default 10
+              --rust-cache-rules BOOL  upstream rule cache; default false
+              --rust-threads N         Rayon threads; default 2
             Oracle: Hybrid-ADS. Run from the repository root.
             """;
 
@@ -56,7 +61,10 @@ public class Benchmark {
                 Map.entry("timeout-seconds", "1200"), Map.entry("heap-mb", "1024"),
                 Map.entry("rule2", "Ads"), Map.entry("rule3", "Ads"), Map.entry("cache", "true"), Map.entry("resume-from", ""),
                 Map.entry("clstar-classpath", System.getProperty("clstar.classpath", "build/clstar/lib/*")),
-                Map.entry("hads-max-tests", "10000"), Map.entry("hads-timeout-seconds", "1200"));
+                Map.entry("hads-max-tests", "10000"), Map.entry("hads-timeout-seconds", "1200"),
+                Map.entry("rust-lsharp-executable", System.getenv().getOrDefault("LSHARP_RUST_EXECUTABLE", "baseline/lsharp/target/release/lsharp")),
+                Map.entry("rust-extra-states", "10"), Map.entry("rust-random-length", "10"),
+                Map.entry("rust-cache-rules", "false"), Map.entry("rust-threads", "2"));
         defaults.forEach(config::setProperty);
         Set<String> supplied = new HashSet<>();
         for (int i = 1; i < args.length; i += 2) {
@@ -68,13 +76,16 @@ public class Benchmark {
         int repetitions = positive(config, "repetitions"), attempts = positive(config, "max-attempts");
         int timeout = positive(config, "timeout-seconds"), heap = positive(config, "heap-mb");
         positive(config, "hads-max-tests"); positive(config, "hads-timeout-seconds");
+        positive(config, "rust-extra-states"); positive(config, "rust-random-length"); positive(config, "rust-threads");
+        if (!Set.of("true", "false").contains(config.getProperty("rust-cache-rules"))) throw new IllegalArgumentException("Invalid Rust cache flag");
         long masterSeed = Long.parseLong(config.getProperty("seed"));
         if (attempts < repetitions) throw new IllegalArgumentException("max-attempts must be >= repetitions");
         Rule2.valueOf(config.getProperty("rule2")); Rule3.valueOf(config.getProperty("rule3"));
         if (!Set.of("true", "false").contains(config.getProperty("cache"))) throw new IllegalArgumentException("Invalid cache flag");
         List<String> algorithms = Arrays.asList(config.getProperty("algorithms").split(",", -1));
-        if (new HashSet<>(algorithms).size() != algorithms.size() || algorithms.stream().anyMatch(a -> !Set.of("nclsharp", "clsharp", "lsharp", "clstar-cached", "clstar-no-cache").contains(a)))
+        if (new HashSet<>(algorithms).size() != algorithms.size() || algorithms.stream().anyMatch(a -> !Set.of("nclsharp", "clsharp", "lsharp", "clstar-cached", "clstar-no-cache", "lsharp-rust").contains(a)))
             throw new IllegalArgumentException("Invalid algorithms");
+        if (algorithms.contains("lsharp-rust")) RustLSharp.configure(config);
         List<String> files = readModelList(Path.of(args[0]));
         Path out = Path.of(config.getProperty("output-dir")).toAbsolutePath();
         Files.createDirectories(out);
@@ -86,12 +97,13 @@ public class Benchmark {
         config.setProperty("java-version", System.getProperty("java.version"));
         config.setProperty("os", System.getProperty("os.name") + " " + System.getProperty("os.arch"));
         config.setProperty("model-list", Path.of(args[0]).toAbsolutePath().toString());
-        config.setProperty("oracle", "hybrid-ads -p buggy -m random -k 10 -s hads -r 10");
+        config.setProperty("oracle", algorithms.equals(List.of("lsharp-rust"))
+                ? "hads-int (original Rust); infinite" : "hybrid-ads -p buggy -m random -k 10 -s hads -r 10");
         config.setProperty("git-revision", revision(Path.of(".")));
         config.setProperty("hybrid-ads-revision", System.getenv().getOrDefault("HYBRID_ADS_REVISION", revision(Path.of("hybrid-ads"))));
         store(config, out.resolve("run.properties"));
         Files.write(out.resolve("models.txt"), files);
-        writeHashes(out.resolve("inputs.sha256"), files);
+        writeHashes(out.resolve("inputs.sha256"), files, config);
         boolean complete = true;
         for (String alg : algorithms) Files.writeString(out.resolve(alg + "_results.csv"), HEADER + "\n");
         Files.writeString(out.resolve("attempts.csv"), "file,algorithm,attempt,repetition,seed,partialSeed,status,elapsedMillis,detail\n");
@@ -111,9 +123,12 @@ public class Benchmark {
                             Path detail = out.resolve("attempts/" + id + ".log");
                             long start = System.nanoTime();
                             String status;
+                            Path rustWork = RustLSharp.workDirectory(out, id);
                             List<String> command = new ArrayList<>(List.of(
                                     Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-Xmx" + heap + "m", "-DLOG_LEVEL=WARN", "-cp"));
-                            if (alg.startsWith("clstar-")) {
+                            if (alg.equals("lsharp-rust")) {
+                                command = RustLSharp.command(config, MODEL_DIRECTORY.resolve(file), seed, rustWork);
+                            } else if (alg.startsWith("clstar-")) {
                                 command.addAll(List.of(config.getProperty("clstar-classpath"), "ClStarTrial",
                                         MODEL_DIRECTORY.resolve(file).toString(), Boolean.toString(alg.equals("clstar-cached")),
                                         Integer.toString(seed), Integer.toString(partialSeed), result.toString(),
@@ -123,7 +138,12 @@ public class Benchmark {
                                 command.addAll(List.of(System.getProperty("java.class.path"), Benchmark.class.getName(), "--worker",
                                         out.resolve("run.properties").toString(), file, alg, Integer.toString(seed), Integer.toString(partialSeed), result.toString()));
                             }
-                            Process process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(detail.toFile()).start();
+                            ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(detail.toFile());
+                            if (alg.equals("lsharp-rust")) {
+                                builder.directory(rustWork.toFile());
+                                builder.environment().put("RAYON_NUM_THREADS", config.getProperty("rust-threads"));
+                            }
+                            Process process = builder.start();
                             activeWorker = process;
                             if (!process.waitFor(timeout, TimeUnit.SECONDS)) {
                                 process.destroy(); // Worker shutdown hook terminates its native oracle.
@@ -135,14 +155,17 @@ public class Benchmark {
                                 status = "timeout";
                             } else if (process.exitValue() != 0) status = "error";
                             else {
-                                Properties raw = load(result);
-                                if (Boolean.parseBoolean(raw.getProperty("learned"))) {
-                                    csv.write(file + "," + raw.getProperty("size") + ","
-                                            + (Long.parseLong(raw.getProperty("learnInputs")) - Long.parseLong(raw.getProperty("minCeInputs"))) + ","
-                                            + (Long.parseLong(raw.getProperty("learnResets")) - Long.parseLong(raw.getProperty("minCeResets"))) + ","
-                                            + raw.getProperty("testInputs") + "," + raw.getProperty("testResets") + "\n");
-                                    csv.flush(); successes++; status = "success";
-                                } else status = "not_learned";
+                                try {
+                                    if (alg.equals("lsharp-rust")) RustLSharp.capture(MODEL_DIRECTORY.resolve(file), seed, rustWork, result);
+                                    Properties raw = load(result);
+                                    if (Boolean.parseBoolean(raw.getProperty("learned"))) {
+                                        csv.write(csvRow(file, raw));
+                                        csv.flush(); successes++; status = "success";
+                                    } else status = "not_learned";
+                                } catch (IOException | IllegalArgumentException e) {
+                                    try (var writer = new java.io.PrintWriter(new FileWriter(detail.toFile(), true))) { e.printStackTrace(writer); }
+                                    status = "error";
+                                }
                             }
                             activeWorker = null;
                             long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
@@ -175,6 +198,12 @@ public class Benchmark {
         }
         if (algorithms.stream().anyMatch(a -> a.startsWith("clstar-"))) {
             for (String key : List.of("hads-max-tests", "hads-timeout-seconds"))
+                if (!Objects.equals(old.getProperty(key), config.getProperty(key)))
+                    throw new IllegalArgumentException("Resume configuration mismatch: " + key);
+        }
+        if (algorithms.contains("lsharp-rust")) {
+            for (String key : List.of("rust-binary-sha256", "rust-source-revision", "rust-cargo-lock-sha256", "rust-extra-states",
+                    "rust-random-length", "rust-cache-rules", "rust-threads"))
                 if (!Objects.equals(old.getProperty(key), config.getProperty(key)))
                     throw new IllegalArgumentException("Resume configuration mismatch: " + key);
         }
@@ -211,14 +240,12 @@ public class Benchmark {
             Files.copy(previous.resolve(detail), out.resolve(detail));
             Path rawPath = Path.of(row[8].replace(".log", ".properties"));
             if (Files.exists(previous.resolve(rawPath))) Files.copy(previous.resolve(rawPath), out.resolve(rawPath));
+            if (row[1].equals("lsharp-rust")) RustLSharp.importTrial(previous, out, detail);
             if (row[6].equals("success") || row[6].equals("surplus_success")) {
                 if (state[0] < repetitions) {
                     Properties raw = load(previous.resolve(rawPath));
                     if (!Boolean.parseBoolean(raw.getProperty("learned"))) throw new IllegalArgumentException("Invalid imported success");
-                    Files.writeString(out.resolve(row[1] + "_results.csv"), row[0] + "," + raw.getProperty("size") + ","
-                            + (Long.parseLong(raw.getProperty("learnInputs")) - Long.parseLong(raw.getProperty("minCeInputs"))) + ","
-                            + (Long.parseLong(raw.getProperty("learnResets")) - Long.parseLong(raw.getProperty("minCeResets"))) + ","
-                            + raw.getProperty("testInputs") + "," + raw.getProperty("testResets") + "\n", StandardOpenOption.APPEND);
+                    Files.writeString(out.resolve(row[1] + "_results.csv"), csvRow(row[0], raw), StandardOpenOption.APPEND);
                     row[6] = "success";
                     state[0]++;
                 } else row[6] = "surplus_success"; // Retained for provenance; outside the new repetition target.
@@ -230,7 +257,7 @@ public class Benchmark {
         return progress;
     }
 
-    private static void writeHashes(Path destination, List<String> models) throws Exception {
+    private static void writeHashes(Path destination, List<String> models, Properties config) throws Exception {
         Set<Path> paths = new TreeSet<>();
         for (String model : models) paths.add(MODEL_DIRECTORY.resolve(model));
         for (String name : List.of("build.gradle", "settings.gradle", "hybrid-ads/build/main", "build-source.sha256")) {
@@ -243,6 +270,11 @@ public class Benchmark {
         }
         for (Path dir : List.of(Path.of("baseline/clstar/src"), Path.of("build/clstar/lib"), Path.of("clstar/lib"))) {
             if (Files.isDirectory(dir)) try (var stream = Files.walk(dir)) { stream.filter(Files::isRegularFile).forEach(paths::add); }
+        }
+        if (config.getProperty("algorithms").contains("lsharp-rust")) {
+            paths.add(Path.of(config.getProperty("rust-lsharp-executable")));
+            Path buildInfo = Path.of(config.getProperty("rust-lsharp-executable")).resolveSibling("build.properties");
+            if (Files.isRegularFile(buildInfo)) paths.add(buildInfo);
         }
         Path code = Path.of(Benchmark.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         if (Files.isRegularFile(code)) paths.add(code);
@@ -257,6 +289,16 @@ public class Benchmark {
                 w.write(HexFormat.of().formatHex(digest.digest()) + "  " + path + "\n");
             }
         }
+    }
+
+    private static String csvRow(String file, Properties raw) {
+        long symbols = Long.parseLong(raw.getProperty("learnInputs")), resets = Long.parseLong(raw.getProperty("learnResets"));
+        if (!raw.getProperty("counterConvention", "").equals("upstream-unadjusted")) {
+            symbols -= Long.parseLong(raw.getProperty("minCeInputs"));
+            resets -= Long.parseLong(raw.getProperty("minCeResets"));
+        }
+        return file + "," + raw.getProperty("size") + "," + symbols + "," + resets + ","
+                + raw.getProperty("testInputs") + "," + raw.getProperty("testResets") + "\n";
     }
 
     private static int positive(Properties p, String key) {

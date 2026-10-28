@@ -11,4 +11,15 @@
 !baseline/
 !baseline/clstar/
 !baseline/clstar/**
+!Dockerfile.lsharp
+!baseline/lsharp/
+!baseline/lsharp/Cargo.toml
+!baseline/lsharp/README.md
+!baseline/lsharp/src/
+!baseline/lsharp/src/**
+!baseline/lsharp/benches/
+!baseline/lsharp/benches/*.rs
+!baseline/lsharp-support/
+!baseline/lsharp-support/**
+**/.git
 **/.DS_Store

@@ -1,3 +1,6 @@
 [submodule "hybrid-ads"]
 	path = hybrid-ads
 	url = git@github.com:Jaxan/hybrid-ads.git
+[submodule "baseline/lsharp"]
+	path = baseline/lsharp
+	url = https://gitlab.science.ru.nl/sws/lsharp.git
